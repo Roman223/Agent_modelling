@@ -7,6 +7,8 @@ import inspect
 import numpy as np
 from nolds import hurst_rs, lyap_r, sampen
 
+_DEFAULT_EMBEDDING = object()
+
 
 @dataclass(frozen=True)
 class MetricResult:
@@ -41,7 +43,7 @@ def _defaults(estimator, supplied):
     return defaults
 
 
-def metric_result(name, price_series, *, emb_dim=None, lag=1):
+def metric_result(name, price_series, *, emb_dim=_DEFAULT_EMBEDDING, lag=1):
     """Calculate hurst, lyapunov, or sampen with the legacy preprocessing rules.
 
     Defaults not explicitly supplied to nolds are recorded separately. For short
@@ -53,10 +55,10 @@ def metric_result(name, price_series, *, emb_dim=None, lag=1):
         parameters = {}
     elif name == 'lyapunov':
         estimator, label, min_prices, min_returns = lyap_r, 'nolds.lyap_r (Rosenstein)', 50, 30
-        parameters = {'emb_dim': 5 if emb_dim is None else emb_dim, 'lag': lag}
+        parameters = {'emb_dim': 5 if emb_dim is _DEFAULT_EMBEDDING else emb_dim, 'lag': lag}
     elif name == 'sampen':
         estimator, label, min_prices, min_returns = sampen, 'nolds.sampen (Sample Entropy, nats)', 100, 50
-        parameters = {'emb_dim': 3 if emb_dim is None else emb_dim}
+        parameters = {'emb_dim': 3 if emb_dim is _DEFAULT_EMBEDDING else emb_dim}
     else:
         raise ValueError(f'Unknown metric: {name}')
     defaults = _defaults(estimator, parameters)
@@ -76,7 +78,7 @@ def metric_result(name, price_series, *, emb_dim=None, lag=1):
         tolerance = 0.2 * np.std(log_returns)
         if tolerance == 0:
             tolerance = 0.01
-        parameters['tolerance'] = float(tolerance)
+        parameters['tolerance'] = tolerance
         defaults.pop('tolerance', None)
     try:
         value = estimator(log_returns, **parameters)

@@ -179,7 +179,7 @@ def save_bundle(result, directory, *, seed=None, invocation=None, show=False):
         if result.scenario.evolution:
             plot_trader_counts(result.asset, save_path=destination / 'trader_counts.png')
         # All artifacts are complete before waiting for an interactive window.
-        (destination / 'COMPLETE').write_text('schema_version=1\n', encoding='utf-8')
+        (destination / 'COMPLETE').write_text(f'schema_version={SCHEMA_VERSION}\n', encoding='utf-8')
         if show:
             plt.show()
     finally:

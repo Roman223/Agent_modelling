@@ -1,9 +1,7 @@
 """Bundle round-trip, replay and CLI checks; run as a standalone script."""
 
-import copy
 from dataclasses import asdict
 import json
-import os
 from pathlib import Path
 import subprocess
 import sys

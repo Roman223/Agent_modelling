@@ -33,7 +33,6 @@ class Scenario:
     halt_check: bool = False             # call asset.check_halt_status() and skip trading while halted
     evolution: bool = False              # every 100 days: 2 noise -> chartists, 1 chartist -> fundamentalist
 
-
     def validate(self):
         """Validate public run inputs without rejecting legacy scenario switches."""
         for name in ('noise', 'chartists', 'fundamentalists', 'chartist_window'):

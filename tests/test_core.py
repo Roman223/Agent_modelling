@@ -138,6 +138,18 @@ class SimulationTests(unittest.TestCase):
 
 
 class MetricTests(unittest.TestCase):
+    def test_explicit_arguments_and_constant_returns(self):
+        from src import metrics
+        prices = np.full(120, 100, dtype=np.float32)
+        with patch.object(metrics, 'sampen', return_value=0.0) as estimator:
+            result = metrics.metric_result('sampen', prices)
+            self.assertEqual(result.parameters['tolerance'], 0.01)
+            self.assertEqual(result.return_count, 119)
+            self.assertEqual(estimator.call_args.kwargs, {'emb_dim': 3, 'tolerance': 0.01})
+        with patch.object(metrics, 'lyap_r', return_value=0.0) as estimator:
+            metrics.calculate_lyapunov_exponent(prices, emb_dim=None)
+            self.assertIsNone(estimator.call_args.kwargs['emb_dim'])
+
     def test_diagnostics_and_scalar_compatibility(self):
         from src import metrics
         short = metrics.metric_result('sampen', [100.0] * 10)

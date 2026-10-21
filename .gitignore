@@ -87,3 +87,8 @@ Thumbs.db
 
 # Generated simulation plots
 /results/
+
+# Local agent instructions and project context
+/AGENTS.md
+/CLAUDE.md
+/CONTEXT.md

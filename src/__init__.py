@@ -4,6 +4,7 @@ from .asset import Asset
 from .order_book import OrderBook
 from .traders import Trader, NoiseTrader, ChartistTrader, FundamentalistTrader
 from .metrics import (
+    MetricResult, metric_result,
     calculate_hurst_exponent,
     calculate_lyapunov_exponent,
     calculate_sample_entropy,
@@ -15,6 +16,8 @@ from .simulation import (run_simulation, wealth_history, simulate, analyze_resul
 from .index_data import INDEX_FILES, DATA_DIR, load_index, index_metrics, print_index_metrics
 
 __all__ = [
+    'MetricResult',
+    'metric_result',
     'Asset',
     'OrderBook',
     'Trader',

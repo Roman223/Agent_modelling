@@ -1,6 +1,7 @@
 """Scenario definitions and shared parameters from the original notebook."""
 
 from dataclasses import dataclass
+from numbers import Integral
 
 # Per-agent endowments and strategy parameters shared by every scenario (notebook cells 18-47).
 NOISE_CASH, NOISE_ASSETS = 100000, 1000
@@ -31,6 +32,17 @@ class Scenario:
     circuit_breaker_asset: bool = False  # Asset rejects >20% moves (notebook cell 42)
     halt_check: bool = False             # call asset.check_halt_status() and skip trading while halted
     evolution: bool = False              # every 100 days: 2 noise -> chartists, 1 chartist -> fundamentalist
+
+
+    def validate(self):
+        """Validate public run inputs without rejecting legacy scenario switches."""
+        for name in ('noise', 'chartists', 'fundamentalists', 'chartist_window'):
+            value = getattr(self, name)
+            minimum = 1 if name == 'chartist_window' else 0
+            if isinstance(value, bool) or not isinstance(value, Integral) or value < minimum:
+                raise ValueError(f'{name} must be an integer >= {minimum}')
+        if self.noise + self.chartists + self.fundamentalists == 0:
+            raise ValueError('scenario must contain at least one trader')
 
 
 SCENARIOS = {s.name: s for s in [

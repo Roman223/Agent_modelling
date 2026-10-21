@@ -6,8 +6,8 @@ import numpy as np
 from .asset import Asset
 from .order_book import OrderBook
 from .traders import NoiseTrader, ChartistTrader, FundamentalistTrader
-from .metrics import calculate_hurst_exponent, calculate_lyapunov_exponent, calculate_sample_entropy
-from .scenarios import (SCENARIOS, NOISE_CASH, NOISE_ASSETS, CHARTIST_CASH, CHARTIST_ASSETS, CHARTIST_ALPHA,
+from .metrics import metric_result
+from .scenarios import (Scenario, SCENARIOS, NOISE_CASH, NOISE_ASSETS, CHARTIST_CASH, CHARTIST_ASSETS, CHARTIST_ALPHA,
                         FUNDAMENTALIST_CASH, FUNDAMENTALIST_ASSETS, FUNDAMENTALIST_GAMMA, RISK_FREE_RATE)
 
 TRADER_TYPES = ('noise', 'chartist', 'fundamentalist')
@@ -41,7 +41,7 @@ class SimulationResult:
     is cached and is not invalidated by manual edits to model objects.
     """
 
-    scenario: object
+    scenario: Scenario
     days: int
     asset: Asset
     traders: list
@@ -82,6 +82,9 @@ def simulate(scenario=SCENARIOS['baseline'], days=1000, *, verbose=False):
     Uses the current global NumPy RNG stream. Call analyze_result immediately to
     reproduce legacy metric values, or retain its separately recorded RNG state.
     """
+    if isinstance(days, (bool, np.bool_)) or not isinstance(days, (int, np.integer)) or days <= 0:
+        raise ValueError('days must be a positive integer')
+    scenario.validate()
     rng_state_before = np.random.get_state()
     history = {key: [] for key in ('days', 'noise_avg', 'chartist_avg', 'fundamentalist_avg')}
     log = print if verbose else (lambda *args, **kwargs: None)
@@ -261,19 +264,22 @@ def _build_analysis(scenario, asset, traders, initial_wealths, log):
 
     log('')
     price_series = np.array(asset.price_history)
-    hurst_val = calculate_hurst_exponent(price_series)
+    hurst = metric_result('hurst', price_series)
+    hurst_val = hurst.value
     if not np.isnan(hurst_val):
         log(f"HURST EXPONENT (H) = {hurst_val:.4f}")
     else:
         log("HURST EXPONENT: unavailable")
 
-    lyap_val = calculate_lyapunov_exponent(price_series, emb_dim=10, lag=1)
+    lyapunov = metric_result('lyapunov', price_series, emb_dim=10, lag=1)
+    lyap_val = lyapunov.value
     if not np.isnan(lyap_val):
         log(f"LYAPUNOV ESTIMATE (Rosenstein) = {lyap_val:.4f}")
     else:
         log("LYAPUNOV ESTIMATE: unavailable")
 
-    sample_entropy = calculate_sample_entropy(price_series, emb_dim=3)
+    sampen = metric_result('sampen', price_series, emb_dim=3)
+    sample_entropy = sampen.value
     if not np.isnan(sample_entropy):
         log(f"SAMPLE ENTROPY (nats) = {sample_entropy:.4f}")
     else:
@@ -290,4 +296,4 @@ def _build_analysis(scenario, asset, traders, initial_wealths, log):
         'halt_days': len(asset.halt_events),
         'evolution_events': len(asset.evolution_log),
     }
-    return summary, {'hurst': hurst_val, 'lyapunov': lyap_val, 'sampen': sample_entropy}
+    return summary, {'hurst': hurst, 'lyapunov': lyapunov, 'sampen': sampen}

@@ -1,5 +1,7 @@
 """Shared scenario loop and legacy-compatible simulation reports."""
 
+from dataclasses import dataclass, field
+
 import numpy as np
 from .asset import Asset
 from .order_book import OrderBook
@@ -20,16 +22,70 @@ wealth_history = {
 }
 
 
-def run_simulation(scenario=SCENARIOS['baseline'], days=1000, verbose=True):
-    """Run one scenario with the global np.random stream; returns (asset, traders).
+@dataclass
+class RunAnalysis:
+    """Cached statistics and report text; formatting never consumes random draws."""
 
-    The order of random draws matches the notebook's scenario cells exactly (see
-    tests/test_legacy_equivalence.py), so a given np.random.seed reproduces the notebook's run.
-    Besides the global `wealth_history`, the run leaves `asset.halt_events`, `asset.evolution_log` and
-    `asset.trader_counts_history` for plotting.
+    summary: dict
+    metrics: dict
+    report_lines: list[str]
+    rng_state_before: tuple
+    rng_state_after: tuple
+
+
+@dataclass
+class SimulationResult:
+    """One completed run, independent of subsequent runs and compatibility globals.
+
+    Treat the contained asset/traders as read-only after running analysis: analysis
+    is cached and is not invalidated by manual edits to model objects.
     """
+
+    scenario: object
+    days: int
+    asset: Asset
+    traders: list
+    wealth_history: dict
+    initial_wealths: dict
+    rng_state_before: tuple
+    rng_state_after: tuple
+    analysis: RunAnalysis | None = field(default=None, repr=False)
+
+    @property
+    def halt_events(self):
+        return self.asset.halt_events
+
+    @property
+    def evolution_log(self):
+        return self.asset.evolution_log
+
+    @property
+    def trader_counts_history(self):
+        return self.asset.trader_counts_history
+
+
+def run_simulation(scenario=SCENARIOS['baseline'], days=1000, verbose=True):
+    """Legacy wrapper: preserve tuple return, global history, and RNG consumption."""
+    result = simulate(scenario, days, verbose=verbose)
+    # Keep the dictionary identity used by `from src import wealth_history`.
+    wealth_history.clear()
+    wealth_history.update({key: values.copy() for key, values in result.wealth_history.items()})
+    analysis = analyze_result(result)
+    if verbose:
+        print_analysis(analysis)
+    return result.asset, result.traders
+
+
+def simulate(scenario=SCENARIOS['baseline'], days=1000, *, verbose=False):
+    """Run the market loop without final analysis or mutation of global history.
+
+    Uses the current global NumPy RNG stream. Call analyze_result immediately to
+    reproduce legacy metric values, or retain its separately recorded RNG state.
+    """
+    rng_state_before = np.random.get_state()
+    history = {key: [] for key in ('days', 'noise_avg', 'chartist_avg', 'fundamentalist_avg')}
     log = print if verbose else (lambda *args, **kwargs: None)
-    asset = Asset(circuit_breaker=scenario.circuit_breaker_asset)
+    asset = Asset(circuit_breaker=scenario.circuit_breaker_asset, log=log)
     order_book = OrderBook()
     traders = _create_traders(scenario)
 
@@ -40,8 +96,6 @@ def run_simulation(scenario=SCENARIOS['baseline'], days=1000, verbose=True):
         asset.update_dividend()
 
     initial_wealths = {id(trader): trader.wealth_history[0] for trader in traders}
-    for key in wealth_history:
-        wealth_history[key] = []
     asset.halt_events = []
     asset.evolution_log = []
     asset.trader_counts_history = []
@@ -72,10 +126,10 @@ def run_simulation(scenario=SCENARIOS['baseline'], days=1000, verbose=True):
 
         # Sample group statistics every 100 days and on the final day.
         if day % 100 == 0 or day == days-1:
-            _record_status(day, asset, traders, scenario, trading_halted, log)
+            _record_status(day, asset, traders, scenario, trading_halted, log, history)
 
-    _print_final_analysis(scenario, asset, traders, initial_wealths, log)
-    return asset, traders
+    return SimulationResult(scenario, days, asset, traders, history, initial_wealths,
+                            rng_state_before, np.random.get_state())
 
 
 def _create_traders(scenario):
@@ -127,7 +181,7 @@ def _initial_counts(scenario):
     return {'noise': scenario.noise, 'chartist': scenario.chartists, 'fundamentalist': scenario.fundamentalists}
 
 
-def _record_status(day, asset, traders, scenario, trading_halted, log):
+def _record_status(day, asset, traders, scenario, trading_halted, log, history):
     stats = {t: {'cash': [], 'assets': [], 'wealth': []} for t in TRADER_TYPES}
     for trader in traders:
         if trader.active:
@@ -136,9 +190,9 @@ def _record_status(day, asset, traders, scenario, trading_halted, log):
             s['assets'].append(trader.assets)
             s['wealth'].append(trader.cash + trader.assets * asset.current_price)
 
-    wealth_history['days'].append(day)
+    history['days'].append(day)
     for t in TRADER_TYPES:
-        wealth_history[f'{t}_avg'].append(np.mean(stats[t]['wealth']) if stats[t]['wealth'] else 0)
+        history[f'{t}_avg'].append(np.mean(stats[t]['wealth']) if stats[t]['wealth'] else 0)
     asset.trader_counts_history.append({'day': day, **{t: len(stats[t]['cash']) for t in TRADER_TYPES}})
 
     initial_counts = _initial_counts(scenario)
@@ -151,10 +205,27 @@ def _record_status(day, asset, traders, scenario, trading_halted, log):
         if stats[t]['cash']:
             log(f"{LOG_LABELS[t]} Traders: Avg Cash = {np.mean(stats[t]['cash']):.2f}, "
                 f"Avg Assets = {np.mean(stats[t]['assets']):.2f}, "
-                f"Avg Wealth = {wealth_history[f'{t}_avg'][-1]:.2f}")
+                f"Avg Wealth = {history[f'{t}_avg'][-1]:.2f}")
 
 
-def _print_final_analysis(scenario, asset, traders, initial_wealths, log):
+def analyze_result(result):
+    """Compute metrics once using the current RNG stream, in legacy call order."""
+    if result.analysis is None:
+        lines = []
+        before = np.random.get_state()
+        summary, metrics = _build_analysis(result.scenario, result.asset, result.traders,
+                                           result.initial_wealths, lines.append)
+        result.analysis = RunAnalysis(summary, metrics, lines, before, np.random.get_state())
+    return result.analysis
+
+
+def print_analysis(analysis):
+    """Print a cached report without recomputing statistics or metrics."""
+    for line in analysis.report_lines:
+        print(line)
+
+
+def _build_analysis(scenario, asset, traders, initial_wealths, log):
     log("\n" + "="*50)
     log(f"SIMULATION RESULTS ({scenario.title})")
     log("="*50)
@@ -188,7 +259,7 @@ def _print_final_analysis(scenario, asset, traders, initial_wealths, log):
         if wealth_change[t]:
             log(f"Mean wealth change for {LOG_LABELS[t]}: {np.mean(wealth_change[t]):.2f}%")
 
-    log()
+    log('')
     price_series = np.array(asset.price_history)
     hurst_val = calculate_hurst_exponent(price_series)
     if not np.isnan(hurst_val):
@@ -207,3 +278,16 @@ def _print_final_analysis(scenario, asset, traders, initial_wealths, log):
         log(f"SAMPLE ENTROPY (nats) = {sample_entropy:.4f}")
     else:
         log("SAMPLE ENTROPY: unavailable")
+
+    summary = {
+        'initial_counts': initial_counts,
+        'profitable_counts': profitable,
+        'original_trader_count': len(original),
+        'mean_wealth_change_percent': {
+            t: float(np.mean(values)) if values else None for t, values in wealth_change.items()
+        },
+        'final_price': asset.current_price,
+        'halt_days': len(asset.halt_events),
+        'evolution_events': len(asset.evolution_log),
+    }
+    return summary, {'hurst': hurst_val, 'lyapunov': lyap_val, 'sampen': sample_entropy}

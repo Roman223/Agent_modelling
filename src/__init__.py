@@ -10,7 +10,8 @@ from .metrics import (
     calculate_kolmogorov_entropy,
 )
 from .scenarios import Scenario, SCENARIOS
-from .simulation import run_simulation, wealth_history
+from .simulation import (run_simulation, wealth_history, simulate, analyze_result,
+                         print_analysis, SimulationResult, RunAnalysis)
 from .index_data import INDEX_FILES, DATA_DIR, load_index, index_metrics, print_index_metrics
 
 __all__ = [
@@ -27,6 +28,11 @@ __all__ = [
     'Scenario',
     'SCENARIOS',
     'run_simulation',
+    'simulate',
+    'analyze_result',
+    'print_analysis',
+    'SimulationResult',
+    'RunAnalysis',
     'wealth_history',
     'INDEX_FILES',
     'DATA_DIR',

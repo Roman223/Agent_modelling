@@ -11,7 +11,8 @@ class Asset:
     rejected and halts trading. last_check_price is only refreshed by check_halt_status(), so without calling
     it the halt flag, once set, stays set (see SCENARIOS['evolution']).
     """
-    def __init__(self, initial_price=100, circuit_breaker=False):
+    def __init__(self, initial_price=100, circuit_breaker=False, *, log=print):
+        self.log = log
         self.price_history = [initial_price]
         self.dividend_history = [0.016]
         self.current_price = initial_price
@@ -28,7 +29,7 @@ class Asset:
             if price_change > self.halt_threshold:
                 self.trading_halted = True
                 self.halt_remaining = self.halt_duration
-                print(f"\nCircuit Breaker: Trading halted for {self.halt_duration} days (change {price_change:.2%} > {self.halt_threshold:.2%})")
+                self.log(f"\nCircuit Breaker: Trading halted for {self.halt_duration} days (change {price_change:.2%} > {self.halt_threshold:.2%})")
                 return False
 
         self.current_price = new_price
@@ -50,7 +51,7 @@ class Asset:
             if self.halt_remaining <= 0:
                 self.trading_halted = False
                 self.last_check_price = self.current_price
-                print("\nCircuit Breaker: Trading resumed")
+                self.log("\nCircuit Breaker: Trading resumed")
         else:
             if len(self.price_history) > 0:
                 self.last_check_price = self.price_history[-1]

@@ -31,13 +31,18 @@ def main():
     parser.add_argument('--list', action='store_true', help='list scenarios and exit')
     parser.add_argument('--days', type=int, default=1000)
     parser.add_argument('--seed', type=int, default=None, help='np.random.seed; unseeded if omitted')
-    parser.add_argument('--save', metavar='DIR', default=None,
+    output = parser.add_mutually_exclusive_group()
+    output.add_argument('--save', metavar='DIR', default=None,
                         help='save PNGs as DIR/<scenario>_*.png (relative paths are under the repo root)')
+    output.add_argument('--bundle', metavar='DIR', default=None,
+                        help='save a unique full run bundle under DIR (relative to the repo root)')
     parser.add_argument('--no-show', action='store_true', help="don't open matplotlib windows")
     args = parser.parse_args()
 
     if args.days <= 0:
         parser.error('--days must be a positive integer')
+    if args.seed is not None and not 0 <= args.seed <= 2**32 - 1:
+        parser.error('--seed must be an integer between 0 and 4294967295')
 
     if args.list:
         for s in SCENARIOS.values():
@@ -47,9 +52,21 @@ def main():
         parser.error('scenario is required')
 
     scenario = SCENARIOS[args.scenario]
+    try:
+        scenario.validate()
+    except ValueError as error:
+        parser.error(str(error))
     if args.seed is not None:
         np.random.seed(args.seed)
     print(f'SCENARIO: {scenario.title} ({scenario.noise} / {scenario.chartists} / {scenario.fundamentalists})')
+    if args.bundle:
+        from src.bundles import save_bundle
+        result = simulation.simulate(scenario, days=args.days, verbose=True)
+        simulation.print_analysis(simulation.analyze_result(result))
+        directory = save_bundle(result, os.path.join(REPO_ROOT, args.bundle), seed=args.seed,
+                                invocation=sys.argv, show=not args.no_show)
+        print(f'Run bundle: {directory}')
+        return
     asset, traders = simulation.run_simulation(scenario, days=args.days)
 
     save_dir = os.path.join(REPO_ROOT, args.save) if args.save else None

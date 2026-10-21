@@ -4,6 +4,48 @@ Validated on 2026-10-21 on branch `improvements/reproducibility-and-structure`.
 The branch starts at `450c168`; numerical comparisons use the original notebook
 at `84fa2a6`. No model rules or regression expectations were revised.
 
+## Structured logging extension
+
+The subsequent logging change was checked separately on the same branch:
+
+| Check | Result |
+| --- | --- |
+| Legacy suite after logging changes, 250 days | 25/25 passed, including RNG states |
+| Existing matching, simulation, metric checks | 10/10 passed |
+| Existing bundle/replay/CLI checks | 5/5 passed |
+| New logging checks (`tests/test_logging.py`) | 9/9 passed |
+
+Logging checks run all eight scenarios for 102 days in each of the four modes
+(`off`, `summary`, `trades`, `decisions`), with seed 0 except circuit-breaker seed
+18. Prices, dividends, balances, activity flags, individual/group wealth histories,
+legacy events, analysis diagnostics, and simulation/analysis RNG states match
+exactly between modes. Separate checks reconcile daily/strategy summaries with
+decisions and fills, check immediate transaction balance changes and persistent
+partial fills, verify warm-up halts and random evolution links, and test filters,
+record/byte caps, streamed export, identical replayed log records, CLI arguments,
+temporary-file cleanup on failure, and incomplete-export detection.
+
+The default legacy suite was rerun after this extension. The 1,000-day suite in
+the earlier section below describes the preceding engineering implementation;
+it was not repeated for the logging extension. The existing estimator warnings
+remain visible and do not indicate a logging regression.
+
+A sequential storage smoke run used `more_noise`, 250 days, seed 0. Every mode
+ended at price `55.32145065402109`. Only compressed log files are counted below:
+
+| Mode | Compressed bytes | Detail coverage |
+| --- | ---: | --- |
+| `off` | 0 | Disabled |
+| `summary` | 64,894 | All 270 warm-up/trading steps and 750 strategy rows |
+| `trades` | 5,765,299 | All 90,785 fills |
+| `decisions` | 5,009,527 | 100,000 detail records; cap explicitly reported |
+
+The capped decision run retained 60,500 decisions and 39,500 fills; metadata
+reported 77,000 omitted decisions and 51,285 omitted fills. Its summaries remained
+complete. Detail is streamed to gzip files and bounded by both record and byte
+limits; no population-size detail table is retained in memory. All jobs used one
+native thread per library and wrote their output to `/tmp/abm-logging-*.log`.
+
 ## Compatibility and correctness
 
 | Check | Result |

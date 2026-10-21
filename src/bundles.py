@@ -18,6 +18,7 @@ import numpy as np
 
 from . import scenarios
 from .simulation import analyze_result, simulate, TRADER_TYPES
+from .run_logging import LogOptions
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_VERSION = 1
@@ -150,6 +151,7 @@ def save_bundle(result, directory, *, seed=None, invocation=None, show=False):
         'analysis_rng_state_after': analysis.rng_state_after,
         'provenance': _provenance(),
         'history_indexing': 'price/dividend are legacy observation sequences, including warm-up; not daily alignment',
+        'logging': result.run_log.metadata() if result.run_log is not None else None,
     }
     _write_json(destination / 'manifest.json', manifest)
     _write_json(destination / 'analysis.json', {
@@ -167,6 +169,8 @@ def save_bundle(result, directory, *, seed=None, invocation=None, show=False):
         'halt_events': result.halt_events, 'evolution_log': result.evolution_log,
         'trader_counts_history': result.trader_counts_history,
     })
+    if result.run_log is not None:
+        result.run_log.export(destination / 'logs')
     from .plotting import plot_price, plot_wealth_history, plot_wealth_histograms, plot_trader_counts
     import matplotlib.pyplot as plt
 
@@ -226,7 +230,10 @@ def replay_bundle(directory):
     try:
         configuration = manifest['configuration']
         np.random.set_state(rng_state_from_json(manifest['rng_state_before']))
-        result = simulate(scenarios.Scenario(**configuration['scenario']), days=configuration['days'])
+        logging = manifest.get('logging')
+        options = LogOptions(**logging['options']) if logging else LogOptions(level='off')
+        result = simulate(scenarios.Scenario(**configuration['scenario']), days=configuration['days'],
+                          log_options=options)
         if _json_safe(effective_configuration(result)) != configuration:
             raise ValueError('Effective model settings differ from the recorded run')
         np.random.set_state(rng_state_from_json(manifest['analysis_rng_state_before']))

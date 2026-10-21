@@ -144,7 +144,117 @@ warm-up; they are not guaranteed daily series. Group histories use `days`,
 `noise_avg`, `chartist_avg`, and `fundamentalist_avg`. Population series use
 `population_days` and `population_<type>`. For trader index `i`, take
 `trader_wealth[trader_wealth_offsets[i]:trader_wealth_offsets[i + 1]]`.
-Trader indices are local to the run and do not establish evolution lineage.
+Trader indices are local to the run. Structured evolution events link the old and
+new indices when one trader is replaced.
+
+## Structured logging
+
+Every `simulate()` run records compact summaries and events by default, independently
+of `verbose`. Bundles retain them under `logs/`; the console keeps its progress and
+final report. `--save` still saves plots only. Metric failures now include their
+status and reason in the console; full estimator settings and diagnostics remain
+in `analysis.json`.
+
+| File in a bundle | Contents |
+| --- | --- |
+| `logs/steps.jsonl.gz` | Each warm-up step and trading day: price, simple return, dividend; trading rows also contain trade count/volume/notional, closing spread and outstanding orders, halt state, and price formation |
+| `logs/strategies.jsonl.gz` | Each trading day/type: submitted buy/sell order counts and quantities, executed buy/sell volume and notional, active population, total cash/holdings/wealth, average cash/wealth |
+| `logs/events.jsonl.gz` | Circuit-breaker triggers and resumptions, skipped trading days, evolution links and selection rule, resource-based deactivations; absent if no events occurred |
+| `logs/trades.jsonl.gz` | Optional: each fill's buyer/seller IDs and types, execution price/quantity, cash and holdings immediately before and after |
+| `logs/decisions.jsonl.gz` | Optional: each evaluated trader's inputs, decision reason, intended order, cash/holdings, and whether an order was submitted |
+| `logs/metadata.json` | Log schema version, options, filenames, written counts, caps, and omitted detail counts |
+| `analysis.json` | Metric value/status/reason, estimator, parameters, library defaults, input counts, library version, and final run summary |
+
+Detailed modes require a bundle in the CLI:
+
+```bash
+# Default: complete daily summaries and events
+.venv/bin/python experiments/run_scenario.py baseline --days 250 --seed 0 --bundle results --no-show
+
+# Include individual transactions
+.venv/bin/python experiments/run_scenario.py baseline --days 250 --seed 0 --bundle results --log-level trades --no-show
+
+# Include decisions and trades for two traders during days 90–110
+.venv/bin/python experiments/run_scenario.py evolution --days 250 --seed 0 --bundle results --log-level decisions --log-trader 0 --log-trader 50 --log-start-day 90 --log-end-day 110 --no-show
+```
+
+`--log-level` accepts `off`, `summary` (default), `trades`, or `decisions` (includes
+trades). Repeating `--log-trader ID` selects multiple traders. A trade matches if
+either participant is selected. Day bounds are inclusive and zero-based; filters
+affect detail only. Trader IDs match `traders.json` indices, remain stable within
+the run, and append as evolution creates traders. Unknown IDs produce no matching
+detail. A halted day has a skip event rather than fabricated trader decisions.
+
+Detail defaults to **100,000 records or 64 MiB of uncompressed JSON**, whichever
+limit is reached first, shared across trades and decisions in execution order.
+Adjust with `--log-max-records` and `--log-max-bytes`. Once capped, remaining eligible
+detail records are counted as omitted. `detail_truncated` and `omitted_by_cap` in
+metadata identify this explicitly; verbose runs also print a notice. Filtered-out
+records are outside the requested scope and are not counted as cap omissions.
+Summaries and events remain complete regardless of detail caps or filters.
+
+Logs stream to compressed temporary files, rather than accumulating records in
+RAM. They persist with the result until exported or released. In Python:
+
+```python
+from src import LogOptions, simulation
+from src.bundles import save_bundle
+
+result = simulation.simulate(days=120, log_options=LogOptions(
+    level="decisions", trader_ids=(0, 50), start_day=0, end_day=9,
+))
+analysis = simulation.analyze_result(result)  # retain legacy metric RNG timing
+for row in result.run_log.iter_records("steps"):
+    if row["phase"] == "trading" and row["day"] == 0:
+        print(row)
+folder = save_bundle(result, "results")
+result.run_log.cleanup()  # optional immediate release; cannot read/export logs again
+```
+
+Temporary files are also released when the log object is garbage-collected. The
+legacy tuple API exposes the same log through `asset.run_log`. Use
+`LogOptions(level="off")` to disable structured collection. Replay restores the
+recorded logging options as well as the RNG states. Read exported files without
+loading a whole table:
+
+```python
+import gzip
+import json
+
+with gzip.open(folder / "logs" / "steps.jsonl.gz", "rt") as stream:
+    for line in stream:
+        row = json.loads(line)
+        # Process one observation at a time.
+```
+
+Interpretation details:
+
+- `phase` distinguishes warm-up from trading in step/event records. The other
+  streams refer only to trading days. Step `return` is the simple price change
+  against that step's starting price; nonlinear metrics still use log-returns.
+- Trading summaries describe the book **after matching**. Outstanding quantities
+  include persistent, possibly unaffordable orders. The spread is `null` if either
+  side is empty; it can remain crossed when matching cannot proceed.
+- `price_formation` records VWAP, liquidity factor, the proposed noisy price before
+  and after the floor, and whether the asset accepted it. No executions means
+  `price_formation: null`; a rejected update can have positive volume and zero price
+  change. Trade volume counts each fill once. Buy/sell strategy volumes count each
+  side separately; adding both doubles market volume.
+- Strategy balance/wealth aggregates cover **active traders at day end**. Activity
+  covers every submitted/executed order, including persistent orders belonging to
+  traders who later became inactive. Empty active groups have `null` averages.
+- Evolution selection is uniform random among active traders of the source type;
+  `selection_score` is `null` because the model has no performance-based selection.
+  Events give the active counts after each replacement. No rule is inferred from
+  a trader's profitability.
+- Decisions record already-computed values: noise signal draws, chartist moving
+  averages and buy volatility/correction, fundamentalist excess returns and target
+  holdings. Reasons follow the implemented branches: chartists' `sell_fallback`
+  may also occur above the moving average when there is no cash. Inputs are present
+  only when their branch evaluated them. `submitted` does not imply execution.
+- Logs add no random draws or model decisions. They explain observed activity;
+  causal strategy claims still require controlled comparisons. There are no unique
+  order IDs or a complete order amendment/removal ledger in this logging schema.
 
 [`Multiagent_Modelling_notebook.ipynb`](Multiagent_Modelling_notebook.ipynb) uses
 the same package. Select a Jupyter kernel with the project dependencies installed;
@@ -208,6 +318,7 @@ src/
     scenarios.py      Scenario configurations and shared parameters
     simulation.py     Result objects, simulation loop, cached analysis and reporting
     bundles.py        Compressed run export and RNG-state replay
+    run_logging.py    Streaming structured logs, detail filters and limits
     metrics.py        Log-return estimators
     plotting.py       Reusable plotting functions
     index_data.py     Market-index CSV loading and reports
@@ -218,6 +329,7 @@ tests/
     test_legacy_equivalence.py
     test_core.py
     test_bundles.py
+    test_logging.py
 data/                Market-index CSV inputs
 Multiagent_Modelling_notebook.ipynb
 ```
@@ -237,6 +349,7 @@ wealth histories, and metrics against the original notebook in Git commit
 # Focused correctness and artifact checks
 .venv/bin/python tests/test_core.py
 .venv/bin/python tests/test_bundles.py
+.venv/bin/python tests/test_logging.py
 
 # Quick check: baseline, 120 days, seed 0
 .venv/bin/python tests/test_legacy_equivalence.py --scenario baseline --days 120 --seeds 1

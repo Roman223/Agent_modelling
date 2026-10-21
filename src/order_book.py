@@ -24,7 +24,7 @@ class OrderBook:
             position = bisect_right(self.sell_orders, price, key=itemgetter(0))
             self.sell_orders.insert(position, (price, quantity, trader_id))
 
-    def match_orders(self, traders, asset):
+    def match_orders(self, traders, asset, *, on_trade=None, on_price=None):
         executed = []
         traders_dict = {id(trader): trader for trader in traders}
         while self.buy_orders and self.sell_orders and self.buy_orders[0][0] >= self.sell_orders[0][0]:
@@ -53,11 +53,16 @@ class OrderBook:
             if exec_qty <= 0:
                 break
             if buyer.cash >= exec_price * exec_qty and seller.assets >= exec_qty:
+                if on_trade is not None:
+                    before = {'buyer_cash': buyer.cash, 'buyer_assets': buyer.assets,
+                              'seller_cash': seller.cash, 'seller_assets': seller.assets}
                 executed.append((exec_price, exec_qty, buyer, seller))
                 buyer.cash -= exec_price * exec_qty
                 buyer.assets += exec_qty
                 seller.cash += exec_price * exec_qty
                 seller.assets -= exec_qty
+                if on_trade is not None:
+                    on_trade(exec_price, exec_qty, buyer, seller, before)
             else:
                 break
             if buy_qty == exec_qty:
@@ -74,5 +79,9 @@ class OrderBook:
                 liquidity_factor = 1 / (1 + total_qty / 1000)
                 volume_weighted_price = sum(price * qty for price, qty, _, _ in executed) / total_qty
                 new_price = volume_weighted_price * (1 + 0.05 * liquidity_factor * np.random.randn())
-                asset.update_price(max(new_price, 0.01))
+                accepted = asset.update_price(max(new_price, 0.01))
+                if on_price is not None:
+                    on_price({'vwap': volume_weighted_price, 'liquidity_factor': liquidity_factor,
+                              'proposed_price_before_floor': new_price,
+                              'proposed_price': max(new_price, 0.01), 'accepted': accepted})
         return executed

@@ -11,11 +11,13 @@ from .metrics import (
     calculate_kolmogorov_entropy,
 )
 from .scenarios import Scenario, SCENARIOS
+from .run_logging import LogOptions
 from .simulation import (run_simulation, wealth_history, simulate, analyze_result,
                          print_analysis, SimulationResult, RunAnalysis)
 from .index_data import INDEX_FILES, DATA_DIR, load_index, index_metrics, print_index_metrics
 
 __all__ = [
+    'LogOptions',
     'MetricResult',
     'metric_result',
     'Asset',

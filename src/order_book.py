@@ -1,5 +1,8 @@
 """Persistent limit-order storage and midpoint trade matching."""
 
+from bisect import bisect_right
+from operator import itemgetter
+
 import numpy as np
 
 
@@ -14,11 +17,12 @@ class OrderBook:
         if quantity <= 0:
             return
         if order_type == 'buy':
-            self.buy_orders.append((price, quantity, trader_id))
-            self.buy_orders.sort(reverse=True, key=lambda x: x[0])
+            # Insert after equal prices, matching the old stable descending sort.
+            position = bisect_right(self.buy_orders, -price, key=lambda order: -order[0])
+            self.buy_orders.insert(position, (price, quantity, trader_id))
         else:
-            self.sell_orders.append((price, quantity, trader_id))
-            self.sell_orders.sort(key=lambda x: x[0])
+            position = bisect_right(self.sell_orders, price, key=itemgetter(0))
+            self.sell_orders.insert(position, (price, quantity, trader_id))
 
     def match_orders(self, traders, asset):
         executed = []

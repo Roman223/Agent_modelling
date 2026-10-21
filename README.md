@@ -28,6 +28,12 @@ Always pass `--seed` when you need reproducible results; runs are unseeded other
 Plots use scenario-based filenames, so saving the same scenario again overwrites
 its previous plots.
 
+For the recorded numerical environment, install `requirements-lock.txt` instead
+of `requirements.txt`. The lock records runtime dependencies and their transitive
+dependencies from CPython 3.12.9 on Linux x86_64. `requirements.txt` remains the
+minimum-version dependency list. Exact reproduction also requires the same source,
+configuration, and RNG state; a seed alone does not guarantee results across versions.
+
 ## Scenarios
 
 | Scenario | Noise | Chartists | Fundamentalists | Variation |

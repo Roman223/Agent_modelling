@@ -108,6 +108,9 @@ def run_package(scenario, days, seed):
 
 def snapshot(asset, traders, wealth_history):
     return {
+        'rng_state': np.random.get_state(),
+        'events': {name: copy.deepcopy(getattr(asset, name)) for name in
+                   ('halt_events', 'evolution_log', 'trader_counts_history') if hasattr(asset, name)},
         'price_history': np.array(asset.price_history),
         'dividend_history': np.array(asset.dividend_history),
         'traders': [(t.type, t.cash, t.assets, t.active, np.array(t.wealth_history)) for t in traders],
@@ -117,6 +120,11 @@ def snapshot(asset, traders, wealth_history):
 
 def differences(legacy, new):
     diffs = []
+    if any(not np.array_equal(a, b) for a, b in zip(legacy['rng_state'], new['rng_state'])):
+        diffs.append('final NumPy RNG state differs')
+    for name, events in legacy['events'].items():
+        if events != new['events'].get(name):
+            diffs.append(f'{name} differs')
     for key in ('price_history', 'dividend_history'):
         if not np.array_equal(legacy[key], new[key]):
             diffs.append(f'{key}: first mismatch at index {_first_mismatch(legacy[key], new[key])}')

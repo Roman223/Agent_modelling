@@ -1,10 +1,21 @@
+"""Asset prices, stochastic dividends, and optional circuit-breaker state."""
+
 import numpy as np
 
+
 class Asset:
-    def __init__(self, initial_price=100):
+    """Single traded asset.
+
+    circuit_breaker=False is the notebook's cell-4 Asset: every price update is accepted.
+    circuit_breaker=True is its cell-42 Asset: a move of more than halt_threshold against last_check_price is
+    rejected and halts trading. last_check_price is only refreshed by check_halt_status(), so without calling
+    it the halt flag, once set, stays set (see SCENARIOS['evolution']).
+    """
+    def __init__(self, initial_price=100, circuit_breaker=False):
         self.price_history = [initial_price]
         self.dividend_history = [0.016]
         self.current_price = initial_price
+        self.circuit_breaker = circuit_breaker
         self.trading_halted = False
         self.halt_threshold = 0.20
         self.halt_duration = 5
@@ -12,12 +23,12 @@ class Asset:
         self.last_check_price = initial_price
 
     def update_price(self, new_price):
-        if not self.trading_halted:
+        if self.circuit_breaker and not self.trading_halted:
             price_change = abs(new_price / self.last_check_price - 1)
             if price_change > self.halt_threshold:
                 self.trading_halted = True
                 self.halt_remaining = self.halt_duration
-                print(f"\nCircuit Breaker: Торги остановлены на {self.halt_duration} дней (изменение {price_change:.2%} > {self.halt_threshold:.2%})")
+                print(f"\nCircuit Breaker: Trading halted for {self.halt_duration} days (change {price_change:.2%} > {self.halt_threshold:.2%})")
                 return False
 
         self.current_price = new_price
@@ -39,7 +50,7 @@ class Asset:
             if self.halt_remaining <= 0:
                 self.trading_halted = False
                 self.last_check_price = self.current_price
-                print("\nCircuit Breaker: Торги возобновлены")
+                print("\nCircuit Breaker: Trading resumed")
         else:
             if len(self.price_history) > 0:
                 self.last_check_price = self.price_history[-1]

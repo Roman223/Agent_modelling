@@ -1,6 +1,11 @@
+"""Trader portfolios and the three market decision rules."""
+
 import numpy as np
 
+
 class Trader:
+    """Cash, holdings, activity status, and marked-to-market wealth history."""
+
     def __init__(self, trader_type, cash, assets):
         self.type = trader_type
         self.cash = max(cash, 0)
@@ -19,9 +24,11 @@ class Trader:
 
 
 class NoiseTrader(Trader):
+    """Place randomized orders around the current market price."""
+
     def __init__(self, cash, assets):
         super().__init__('noise', cash, assets)
-    
+
     def make_decision(self, asset, rn=0.05):
         if not self.active:
             return None, None, None
@@ -44,11 +51,13 @@ class NoiseTrader(Trader):
 
 
 class ChartistTrader(Trader):
+    """Trade around a moving average with volatility-dependent buy markups."""
+
     def __init__(self, cash, assets, window=20, alpha=0.1):
         super().__init__('chartist', cash, assets)
         self.window = window
         self.alpha = alpha
-    
+
     def make_decision(self, asset):
         if not self.active or len(asset.price_history) < self.window:
             return None, None, None
@@ -75,11 +84,13 @@ class ChartistTrader(Trader):
 
 
 class FundamentalistTrader(Trader):
+    """Choose target holdings from dividend-adjusted excess returns."""
+
     def __init__(self, cash, assets, gamma=2, rf=0.0004):
         super().__init__('fundamentalist', cash, assets)
         self.gamma = gamma
         self.rf = rf
-    
+
     def make_decision(self, asset):
         if not self.active or len(asset.price_history) < 2:
             return None, None, None

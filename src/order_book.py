@@ -1,4 +1,11 @@
+"""Persistent limit-order storage and midpoint trade matching."""
+
+import numpy as np
+
+
 class OrderBook:
+    """Match bids and asks while retaining unmatched orders across trading days."""
+
     def __init__(self):
         self.buy_orders = []
         self.sell_orders = []
@@ -28,17 +35,15 @@ class OrderBook:
                 if new_qty <= 0:
                     self.buy_orders.pop(0)
                     continue
-                else:
-                    self.buy_orders[0] = (buy_price, new_qty, buyer_id)
-                    buy_qty = new_qty
+                self.buy_orders[0] = (buy_price, new_qty, buyer_id)
+                buy_qty = new_qty
             if seller.assets < min(buy_qty, sell_qty):
                 new_qty = seller.assets
                 if new_qty <= 0:
                     self.sell_orders.pop(0)
                     continue
-                else:
-                    self.sell_orders[0] = (sell_price, new_qty, seller_id)
-                    sell_qty = new_qty
+                self.sell_orders[0] = (sell_price, new_qty, seller_id)
+                sell_qty = new_qty
             exec_price = (buy_price + sell_price) / 2
             exec_qty = min(buy_qty, sell_qty)
             if exec_qty <= 0:
@@ -63,6 +68,7 @@ class OrderBook:
             total_qty = sum(qty for _, qty, _, _ in executed)
             if total_qty > 0:
                 liquidity_factor = 1 / (1 + total_qty / 1000)
-                new_price = (sum(price*qty for price, qty, _, _ in executed) / total_qty) * (1 + 0.05 * liquidity_factor * np.random.randn())
+                volume_weighted_price = sum(price * qty for price, qty, _, _ in executed) / total_qty
+                new_price = volume_weighted_price * (1 + 0.05 * liquidity_factor * np.random.randn())
                 asset.update_price(max(new_price, 0.01))
         return executed

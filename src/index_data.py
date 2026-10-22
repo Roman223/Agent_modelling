@@ -5,7 +5,7 @@ import os
 import numpy as np
 import pandas as pd
 
-from .metrics import calculate_hurst_exponent, calculate_lyapunov_exponent, calculate_sample_entropy
+from src.metrics import calculate_hurst_exponent, calculate_lyapunov_exponent, calculate_sample_entropy
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data')
 

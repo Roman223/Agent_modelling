@@ -4,7 +4,7 @@ import os
 
 import matplotlib.pyplot as plt
 
-from .scenarios import INITIAL_WEALTH
+from src.scenarios import INITIAL_WEALTH
 
 _TYPE_STYLE = {
     'noise': ('b', 'Noise traders'),

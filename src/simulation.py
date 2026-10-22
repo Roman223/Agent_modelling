@@ -3,12 +3,12 @@
 from dataclasses import dataclass, field
 
 import numpy as np
-from .asset import Asset
-from .order_book import OrderBook
-from .traders import NoiseTrader, ChartistTrader, FundamentalistTrader
-from .metrics import metric_result
-from .run_logging import LogOptions, RunLog
-from .scenarios import (Scenario, SCENARIOS, NOISE_CASH, NOISE_ASSETS, CHARTIST_CASH, CHARTIST_ASSETS, CHARTIST_ALPHA,
+from src.asset import Asset
+from src.order_book import OrderBook
+from src.traders import NoiseTrader, ChartistTrader, FundamentalistTrader
+from src.metrics import metric_result
+from src.run_logging import LogOptions, RunLog
+from src.scenarios import (Scenario, SCENARIOS, NOISE_CASH, NOISE_ASSETS, CHARTIST_CASH, CHARTIST_ASSETS, CHARTIST_ALPHA,
                         FUNDAMENTALIST_CASH, FUNDAMENTALIST_ASSETS, FUNDAMENTALIST_GAMMA, RISK_FREE_RATE)
 
 TRADER_TYPES = ('noise', 'chartist', 'fundamentalist')

@@ -16,9 +16,9 @@ import zipfile
 
 import numpy as np
 
-from . import scenarios
-from .simulation import analyze_result, simulate, TRADER_TYPES
-from .run_logging import LogOptions
+from src import scenarios
+from src.simulation import analyze_result, simulate, TRADER_TYPES
+from src.run_logging import LogOptions
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_VERSION = 1
@@ -171,7 +171,7 @@ def save_bundle(result, directory, *, seed=None, invocation=None, show=False):
     })
     if result.run_log is not None:
         result.run_log.export(destination / 'logs')
-    from .plotting import plot_price, plot_wealth_history, plot_wealth_histograms, plot_trader_counts
+    from src.plotting import plot_price, plot_wealth_history, plot_wealth_histograms, plot_trader_counts
     import matplotlib.pyplot as plt
 
     figures_before = set(plt.get_fignums())

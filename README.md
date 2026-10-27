@@ -276,9 +276,12 @@ study; changing any `src` file changes its identity.
 Rendering requires complete, valid inputs. It writes per-run compressed JSON,
 numeric tables, per-group coverage and quartiles, and six figures in PNG/PDF:
 reference prices, liquidity paths, two resource-allocation panels, trading
-continuity, and quadrature sensitivity. Report identity includes source/runtime
-and every input completion hash. See the task 4 validation record for findings
-and limitations before interpreting the reduced dynamics.
+continuity, and quadrature sensitivity. Price axes are logarithmic; activity axes
+retain zero. Report identity includes source/runtime and every input completion
+hash. The [completed pilot and validation record](VALIDATION.md#hard-rule-deterministic-reduction-task-4-2026-10-27)
+documents a material closure failure: fresh liquidity-anchor ABMs stall in 5/5
+persistent-order runs, versus 1/5 primary reductions, with large volume and price
+gaps. Read these findings before interpreting the reduced dynamics.
 
 ## Scenarios
 

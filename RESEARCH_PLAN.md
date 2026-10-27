@@ -20,7 +20,7 @@ PR focused on that task's changes. Use merge commits to retain the task history.
 | 1 | `feat/research-parameter-controls` | Python/CLI controls, compatibility checks, logging and bundle replay | Merged via [PR #4](https://github.com/Roman223/Agent_modelling/pull/4) |
 | 2 | `feat/research-experiment-runner` | Resumable experiments, compact artifacts, provenance and resource limits | Merged via [PR #5](https://github.com/Roman223/Agent_modelling/pull/5) |
 | 3 | `feat/research-parameter-atlas` | One-dimensional sweeps and coarse two-dimensional parameter maps | Merged via [PR #6](https://github.com/Roman223/Agent_modelling/pull/6) |
-| 4 | `feat/research-hard-reduction` | Hard-rule deterministic reduction and comparisons with controlled ABM runs | Pending |
+| 4 | `feat/research-hard-reduction` | Hard-rule deterministic reduction and comparisons with controlled ABM runs | Implementation and pilot complete; integration pending |
 | 5 | `feat/research-smooth-reduction` | Regularized companion and sensitivity to smoothing | Pending |
 | 6 | `feat/research-bifurcation-analysis` | Continuation, stability/Lyapunov checks, known-answer tests and pilot results | Pending |
 | 7 | `feat/research-multifractal-analysis` | MF-DFA, surrogate/GARCH controls, validation and pilot results | Pending |
@@ -146,4 +146,38 @@ values. Preserve resource state and accepted-price memory in the reduction, and
 test trading continuity as well as prices. These are comparison anchors, not
 verified bifurcations or deterministic attractors. Create task 4 from the updated
 integration branch, including the PR #6 merge and this handoff documentation.
-Tasks 4–7 remain unimplemented.
+The task 4 handoff below records the next implementation. Tasks 5–7 remain unimplemented.
+
+## Task 4 handoff
+
+Simulation execution commit: `a1e3f3d`, based on integration commit `60b765d`.
+The implementation supplies a deterministic day-order map and a persistent-order
+queue companion. Both retain strategy cash/shares and accepted-price memory.
+Conditional quotes use NumPy quadrature; pooled resources, fractional quantities,
+and matching the weighted order measure are explicit approximations. The
+[README](README.md#hard-rule-deterministic-reduction-task-4) defines the equations,
+interfaces, execution workflow, and artifact format. The
+[validation record](VALIDATION.md#hard-rule-deterministic-reduction-task-4-2026-10-27)
+contains checks, resources, figures, findings, and reproduction details.
+
+All 83 focused checks and 25 default legacy cases passed. The pilot reused 50
+historical ABMs, added 50 fresh controls (seeds 110–114), and completed all 120
+reductions at 8/16/32 quote points with no operational failures. Reports retain
+historical/fresh cohorts separately, exact zero-volume and sub-share activity,
+within-strategy volume, resource paths, and quadrature sensitivity. A later
+plotting-only axis adjustment is separately fingerprinted; simulation artifacts
+retain their original execution identity.
+
+The tested closure fails ABM fidelity: at the fresh liquidity anchor, persistent
+ABMs stall in 5/5 cases versus 1/5 primary reductions; day-order ABMs have 27.7%
+median no-trade days versus zero in the reduction. Continued reduced volume is
+predominantly within-strategy circulation, and prices/resource redistribution
+also diverge. Stall classifications change with quote resolution. These failures
+are retained as results, not tuned away or treated as verified dynamics.
+
+Task 5 should preserve this hard-rule comparison and investigate smoothing
+without claiming that regularization establishes an ABM mechanism. Further
+closure validation is needed before interpreting reduced attractors as ABM
+explanations. Keep the persistent companion outside fixed-size continuation;
+the day map has two conserved-resource constraints. Create task 5 from the
+updated integration branch after task 4 merges, including its final handoff.

@@ -154,7 +154,8 @@ def render_study(root):
                 band(ax, trajectories(rows('abm', cell, 'historical'), 'price'), '#B18A46', 'Historical ABM', ':')
                 band(ax, trajectories(rows('reduction', mapped), 'price'), '#2878A5', f'Hard reduction, K={primary_points}', '--')
                 ax.set_title(f"Closing noise {0.05 if variant < 4 else 0:g}; {'stochastic' if variant % 4 < 2 else 'constant'} dividends; {'persistent' if variant % 2 == 0 else 'day'}")
-                ax.set_ylabel('Price')
+                ax.set_yscale('log')
+                ax.set_ylabel('Price (log scale)')
             axes[0, 0].legend(fontsize=8)
             for ax in axes[-1]:
                 ax.set_xlabel('Trading day')
@@ -168,9 +169,12 @@ def render_study(root):
                     band(ax, trajectories(rows('abm', cell), field), '#555555', 'Fresh ABM')
                     band(ax, trajectories(rows('abm', cell, 'historical'), field), '#B18A46', 'Historical ABM', ':')
                     band(ax, trajectories(rows('reduction', cell), field), '#2878A5', f'Hard reduction, K={primary_points}', '--')
-                    ax.set_ylabel('Price' if row == 0 else 'Volume (shares/day; symlog)')
+                    ax.set_ylabel('Price (log scale)' if row == 0 else 'Volume (shares/day; symlog)')
+                    if row == 0:
+                        ax.set_yscale('log')
                     if row == 1:
                         ax.set_yscale('symlog', linthresh=1)
+                        ax.set_ylim(bottom=0)
                         ax.axhline(1, color='#C84B41', alpha=.5, linewidth=.8)
                         ax.set_xlabel('Trading day')
                 axes[0, col].set_title('Persistent orders' if col == 0 else 'Day orders')
@@ -220,6 +224,7 @@ def render_study(root):
                     ax.set_ylim(0, 1.15 if metric == 'terminal_stall' else 1.05)
                 if metric in ('mean_volume', 'max_outstanding_orders'):
                     ax.set_yscale('symlog', linthresh=1)
+                    ax.set_ylim(bottom=0)
             axes[0, 0].legend(fontsize=8)
             fig.suptitle(f'Trading continuity and closure gaps | Fresh cohort; primary K={primary_points}; final analysis window')
             save(fig, 'continuity')
@@ -240,6 +245,9 @@ def render_study(root):
                 ax.grid(alpha=.18)
                 if metric in ('mean_volume', 'max_outstanding_orders'):
                     ax.set_yscale('symlog', linthresh=1)
+                    ax.set_ylim(bottom=0)
+                if metric in ('terminal_stall', 'zero_volume_fraction', 'subshare_volume_fraction'):
+                    ax.set_ylim(0, 1.05)
             axes[0, 0].legend(fontsize=7)
             fig.suptitle('Quadrature sensitivity | Fresh initial histories; no claim of pathwise convergence')
             save(fig, 'quadrature_sensitivity')

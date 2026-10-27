@@ -3,7 +3,9 @@
 ## Research experiment runner: task 2 (2026-10-27)
 
 Implemented on `feat/research-experiment-runner`, based on integration commit
-`8fe91d6` after task 1 merged through PR #4. No model, estimator, legacy API,
+`8fe91d6` after task 1 merged through PR #4. Implementation commit: `1ae3195`;
+[PR #5](https://github.com/Roman223/Agent_modelling/pull/5) targets
+`research/emergent-dynamics` and remains unmerged. No model, estimator, legacy API,
 schema-1 bundle implementation, or existing regression expectation was changed.
 No dependency was added. Existing untracked research files were left untouched.
 

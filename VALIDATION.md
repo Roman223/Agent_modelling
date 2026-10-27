@@ -1,5 +1,112 @@
 # Engineering improvements: validation record
 
+## Research experiment runner: task 2 (2026-10-27)
+
+Implemented on `feat/research-experiment-runner`, based on integration commit
+`8fe91d6` after task 1 merged through PR #4. Implementation commit: `1ae3195`;
+[PR #5](https://github.com/Roman223/Agent_modelling/pull/5) targets
+`research/emergent-dynamics` and remains unmerged. No model, estimator, legacy API,
+schema-1 bundle implementation, or existing regression expectation was changed.
+No dependency was added. Existing untracked research files were left untouched.
+
+The CLI and reusable runner add explicit JSON experiment specifications, stable
+run IDs and deduplication, isolated seeded workers, a SQLite ledger, interruption
+recovery, and separately versioned compact artifacts. Daily arrays retain all
+trading days and their actual preceding prices. Logs stream through temporary
+compressed files; nonlinear estimators and individual wealth-history exports are
+not part of this interface. Source/runtime fingerprints gate resume, while
+historical compact data remain readable without executing their old model.
+
+Joblib's parallel execution and Optuna's persistent studies were assessed before
+implementation. Standard-library subprocesses and SQLite were selected because
+the workload consists of fixed run specifications and needs process limits,
+artifact publication, and recovery rather than optimization. Existing NumPy and
+run-log implementations supply numerical compression and simulation evidence.
+References: [Joblib parallel execution](https://joblib.readthedocs.io/en/latest/user_guide/parallel.html)
+and [Optuna study persistence](https://optuna.readthedocs.io/en/latest/tutorial/20_recipes/001_rdb.html).
+
+Validation commands and results:
+
+| Command | Result |
+| --- | --- |
+| `.venv/bin/python tests/test_experiments.py` | 18/18 passed |
+| `.venv/bin/python -m unittest discover -s tests -p 'test_core.py'` | 19/19 passed |
+| `.venv/bin/python tests/test_logging.py` | 11/11 passed |
+| `.venv/bin/python tests/test_bundles.py` | 9/9 passed |
+| `.venv/bin/python tests/test_legacy_equivalence.py` | 25/25 passed at 250 days; exact results/RNG against `84fa2a6` |
+
+These are 57 focused checks and 25 legacy cases. They ran in background tool
+sessions with output redirected to `/tmp/task2-tests.log`, `/tmp/task2-core.log`,
+`/tmp/task2-logging.log`, `/tmp/task2-bundles.log`, and `/tmp/task2-legacy.log`.
+Native numerical threading was limited to one; the plotting cache was
+`/tmp/abm-task2-matplotlib`. Existing nolds/scikit-learn warnings remained visible.
+The 1,000-day extended legacy suite was not needed or run for this additive task.
+
+New tests compare daily arrays with direct seeded simulation logs, verify
+serial/parallel identity, preserve zero-volume and breaker-halted days, and check
+summary definitions. They exercise lock exclusion, immutable-manifest and runtime
+rejection, recovery after publication but before ledger update, missing ledger
+rows, corrupt files/markers, explicit retries, SIGTERM/resume, and coordinator
+SIGKILL with worker death. Actual subprocess allocations/writes test Linux
+`RLIMIT_AS` and `RLIMIT_FSIZE`; a small real output quota forces a worker log
+failure and stops the batch. Deadline termination and low-disk/output admission
+checks are covered. No model behavior was adjusted to satisfy these tests.
+
+### Baseline pilot
+
+Specification: `experiments/specs/baseline_pilot.json`, seeds 100–102, 250 trading
+days, analysis burn-in 50. The final local, gitignored output is
+`results/research_task2_pilot_20261027_final/`. Its execution hashes match the
+delivered source; the recorded initial Git state predates the implementation
+commit. The exact runtime closure is recorded in its immutable manifest.
+
+The first run was benchmarked serially. After seed 100 completed and seed 101
+started, SIGTERM interrupted the batch. Resume retained seed 100, restarted seed
+101 from its seed, and then ran seed 102. Seed 100's file hashes, modification
+times, and attempt count were unchanged. A dispatch-race correction prevented
+starting seed 102 after the signal had arrived. Final ledger: three complete
+runs, with attempt counts 1/2/1 for seeds 100/101/102.
+
+| Seed | Completed-attempt wall time | Peak worker RSS | Compact artifact bytes |
+| --- | ---: | ---: | ---: |
+| 100 | 0.812 s | 76,849,152 | 142,491 |
+| 101 | 0.657 s | 76,886,016 | 137,966 |
+| 102 | 0.768 s | 77,500,416 | 141,451 |
+
+The whole managed directory occupied 454,858 bytes after completion. Times include
+worker startup and publication overhead and are single local measurements. Disk
+had approximately 38 GiB free before execution. Driver and invocation evidence is
+in `/tmp/task2-pilot-driver.log`, `/tmp/task2-pilot-initial.log`,
+`/tmp/task2-pilot-resume.log`, and `/tmp/task2-pilot-report.json`; the persisted
+ledger/invocation logs also retain attempts, limits, reasons, and measurements.
+The automatic interruption/resume test reproduces the same recovery workflow.
+
+### Limits and task 3 handoff
+
+Execution is Linux-only and defaults to two workers, one native thread each,
+120 minutes per invocation, 6 GiB aggregate memory allocation, 5 GiB output, and a
+10 GiB free-disk floor. Memory is enforced conservatively as address space, split
+between coordinator, probe reserve, and worker slots. A worker file may hit its
+share of the bounded output reservation before the whole experiment reaches its
+quota. Imports, temporary logs, and compressed-output finalization count against
+these limits. External disk consumers are observed by polling, not controlled.
+
+Per-run simulation checkpoints are deliberately absent. Completed artifacts are
+published atomically and validated on resume; unfinished simulations rerun from
+their seeds. Source hashes do not archive dirty source, and changed execution
+sources/dependencies require restoring the recorded environment or creating a
+new experiment. Summary data retain inherited active-trader accounting and
+halt/order-book semantics. The runner never loads ensemble tables into pandas,
+but the existing simulation still retains trader histories within each capped
+worker. No new research conclusion follows from this infrastructure pilot.
+
+Task 3 should construct cells over the accepted scenario controls, use
+`expand_spec` to deduplicate overlaps, execute through `execute_experiment` or the
+CLI, and aggregate one `read_compact` result at a time. All daily values are kept;
+analysis uses the recorded burn-in window. Fit seeds for future estimators must
+be recorded separately from simulation seeds. Parameter sweeps, new estimators,
+deterministic reductions, and tasks 3–7 remain unimplemented by this PR.
+
 ## Research parameter controls: task 1 (2026-10-27)
 
 Implemented on `feat/research-parameter-controls`, branched from `6bd3467`.

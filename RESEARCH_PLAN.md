@@ -19,7 +19,7 @@ PR focused on that task's changes. Use merge commits to retain the task history.
 | --- | --- | --- | --- |
 | 1 | `feat/research-parameter-controls` | Python/CLI controls, compatibility checks, logging and bundle replay | Merged via [PR #4](https://github.com/Roman223/Agent_modelling/pull/4) |
 | 2 | `feat/research-experiment-runner` | Resumable experiments, compact artifacts, provenance and resource limits | Merged via [PR #5](https://github.com/Roman223/Agent_modelling/pull/5) |
-| 3 | `feat/research-parameter-atlas` | One-dimensional sweeps and coarse two-dimensional parameter maps | Implemented and validated; [draft PR #6](https://github.com/Roman223/Agent_modelling/pull/6) awaits review |
+| 3 | `feat/research-parameter-atlas` | One-dimensional sweeps and coarse two-dimensional parameter maps | Merged via [PR #6](https://github.com/Roman223/Agent_modelling/pull/6) |
 | 4 | `feat/research-hard-reduction` | Hard-rule deterministic reduction and comparisons with controlled ABM runs | Pending |
 | 5 | `feat/research-smooth-reduction` | Regularized companion and sensitivity to smoothing | Pending |
 | 6 | `feat/research-bifurcation-analysis` | Continuation, stability/Lyapunov checks, known-answer tests and pilot results | Pending |
@@ -28,8 +28,11 @@ PR focused on that task's changes. Use merge commits to retain the task history.
 Future PRs are opened when their changes are available; pending rows do not imply
 implemented code or completed experiments. Each PR records its predecessor, scope,
 validation results, limitations, and handoff to the next task. Update this table
-and the integration PR checklist after each merge. The final integration PR is
-merged into `main` only after the remaining tasks and their required checks pass.
+and the integration PR checklist after each merge. Completed task PRs are
+integrated after their required checks and implementation verification; they do
+not wait for individual user review. The user will validate the combined result
+when all seven tasks are finished. Keep the integration PR as a draft until then,
+and merge it into `main` only after the required checks and that final validation.
 
 ## Compatibility requirements for every task
 
@@ -107,7 +110,9 @@ merge and its handoff documentation.
 ## Task 3 handoff
 
 Implementation commit: `a480c8d`, based on integration commit `f56003d`.
-Draft task PR: [#6](https://github.com/Roman223/Agent_modelling/pull/6).
+Validated task head: `90e0d79`; integration merge commit: `da3ec4f` via
+[PR #6](https://github.com/Roman223/Agent_modelling/pull/6). The merged tree was
+identical to the validated task head before this documentation update.
 The approved task 3 plan extends the initial pilot to all eight combinations of
 closing noise `{0, 0.05}`, dividends `{constant, stochastic}`, and order lifetime
 `{day, persistent}`, at every alpha/gamma coordinate. With seeds 100–104 this is
@@ -140,4 +145,5 @@ Select the stored coordinate by index rather than retyping rounded floating-poin
 values. Preserve resource state and accepted-price memory in the reduction, and
 test trading continuity as well as prices. These are comparison anchors, not
 verified bifurcations or deterministic attractors. Create task 4 from the updated
-integration branch only after PR #6 merges. Tasks 4–7 remain unimplemented.
+integration branch, including the PR #6 merge and this handoff documentation.
+Tasks 4–7 remain unimplemented.

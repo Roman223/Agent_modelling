@@ -3,9 +3,10 @@
 ## Research parameter atlas: task 3 (2026-10-27)
 
 Implementation commit: `a480c8d` on `feat/research-parameter-atlas`, branched from
-integration commit `f56003d`. The existing untracked research files were left
-untouched. No simulation, legacy API, bundle format, regression expectation,
-dependency, or task 2 execution source was changed.
+integration commit `f56003d`. [PR #6](https://github.com/Roman223/Agent_modelling/pull/6)
+merged into `research/emergent-dynamics` as `da3ec4f`. The existing untracked
+research files were left untouched. No simulation, legacy API, bundle format,
+regression expectation, dependency, or task 2 execution source was changed.
 
 The implementation adds a schema-1 experiment generator, separate chronological
 diagnostics, bounded resumable analysis, and exportable maps/curves. It reuses
@@ -36,6 +37,11 @@ corruption, retained cache timestamps on resume, SIGTERM interruption, timeout
 and retry, and masked plot coverage. One in-development rerun detected source
 changes during analysis; the final stable-source run passed. A focused plot
 check passed again after the visual tick-label correction.
+
+After integration, the complete merged tree at `da3ec4f` was compared with
+validated task head `90e0d79` and was identical. Subsequent integration-status
+and handoff documentation does not change execution sources or tests, so the
+recorded passing checks apply to the integrated implementation.
 
 The end-to-end CLI smoke study ran eight intervention variants, seed 100,
 120 days with 20 discarded, and completed all simulation/analysis stages and
@@ -173,9 +179,10 @@ resume `analyze` and then `render`; per-cell values are in `summary.json`, and
 `per_run.jsonl.gz` supplies the scalar records for the pooled table. The
 specification and immutable manifest supply the run-to-parameter mapping.
 
-Start task 4 from the integration branch after PR #6 merges. Keep alpha=0.1,
-gamma=2 and its eight variants as the fixed comparison reference. A selected
-liquidity contrast is alpha≈0.2/gamma=0.5 with zero closing noise and constant
+Start task 4 from the updated integration branch, including the PR #6 merge and
+handoff documentation. Keep alpha=0.1, gamma=2 and its eight variants as the fixed
+comparison reference. A selected liquidity contrast is alpha≈0.2/gamma=0.5 with
+zero closing noise and constant
 dividends, comparing persistent orders (5/5 terminal stalls) with day expiry.
 Use grid alpha index 6 (sweep index 12) and gamma index 0: the stored alpha is
 `0.19999999999999998`, so selecting by index avoids a run-identity mismatch from

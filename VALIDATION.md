@@ -4,8 +4,8 @@
 
 Implemented on `feat/research-experiment-runner`, based on integration commit
 `8fe91d6` after task 1 merged through PR #4. Implementation commit: `1ae3195`;
-[PR #5](https://github.com/Roman223/Agent_modelling/pull/5) targets
-`research/emergent-dynamics` and remains unmerged. No model, estimator, legacy API,
+[PR #5](https://github.com/Roman223/Agent_modelling/pull/5) merged into
+`research/emergent-dynamics` as `02e96f6`. No model, estimator, legacy API,
 schema-1 bundle implementation, or existing regression expectation was changed.
 No dependency was added. Existing untracked research files were left untouched.
 
@@ -41,6 +41,8 @@ sessions with output redirected to `/tmp/task2-tests.log`, `/tmp/task2-core.log`
 Native numerical threading was limited to one; the plotting cache was
 `/tmp/abm-task2-matplotlib`. Existing nolds/scikit-learn warnings remained visible.
 The 1,000-day extended legacy suite was not needed or run for this additive task.
+After merge, execution source, pilot specification, and tests were compared with
+validated task head `1cc0d89` and were unchanged; no test rerun was needed.
 
 New tests compare daily arrays with direct seeded simulation logs, verify
 serial/parallel identity, preserve zero-volume and breaker-halted days, and check

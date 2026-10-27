@@ -104,8 +104,10 @@ and is the scope of the total disk quota.
 Analysis reads one validated compact run at a time and never loads daily
 ensemble tables into pandas. It uses the stored chronological daily log returns
 in `[burn_in, days)`, including zero-volume days and the actual preceding price
-for drawdown. Volatility uses `ddof=1`; positive-volume volatility needs two
-trading days. Streak lengths count days within the retained window. Terminal
+for drawdown. These research metrics use calendar trading days; legacy report
+helpers retain their price-observation inputs. Volatility uses `ddof=1`;
+positive-volume volatility needs two trading days. Streak lengths count days
+within the retained window. Terminal
 stall incidence is the proportion of runs with at least 100 terminal no-trade
 days. Other outputs include final price, window log return, mean daily volume,
 drawdown, zero-volume fraction, and longest/terminal no-trade streaks.
@@ -147,6 +149,12 @@ separate short-fit configuration; production settings are also checked on
 periodic, chaotic, constant, and Gaussian controls. See
 [nolds methods](https://cschoel.github.io/nolds/nolds.html) and
 [validation examples](https://nolds.readthedocs.io/en/stable/examples.html).
+
+The [completed task 3 study](VALIDATION.md#research-parameter-atlas-task-3-2026-10-27)
+records all 2,840 simulations and analyses, findings, limitations, and task 4
+anchors. Representative [volatility](experiments/figures/task3_20261027/log_return_volatility_map.png)
+and [terminal-stall](experiments/figures/task3_20261027/terminal_stall_map.png) maps
+are retained in Git; the full 24-figure set and compact data remain under `results/`.
 
 ## Scenarios
 

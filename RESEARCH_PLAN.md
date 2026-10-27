@@ -19,7 +19,7 @@ PR focused on that task's changes. Use merge commits to retain the task history.
 | --- | --- | --- | --- |
 | 1 | `feat/research-parameter-controls` | Python/CLI controls, compatibility checks, logging and bundle replay | Merged via [PR #4](https://github.com/Roman223/Agent_modelling/pull/4) |
 | 2 | `feat/research-experiment-runner` | Resumable experiments, compact artifacts, provenance and resource limits | Merged via [PR #5](https://github.com/Roman223/Agent_modelling/pull/5) |
-| 3 | `feat/research-parameter-atlas` | One-dimensional sweeps and coarse two-dimensional parameter maps | Pending |
+| 3 | `feat/research-parameter-atlas` | One-dimensional sweeps and coarse two-dimensional parameter maps | Implemented and validated; [draft PR #6](https://github.com/Roman223/Agent_modelling/pull/6) awaits review |
 | 4 | `feat/research-hard-reduction` | Hard-rule deterministic reduction and comparisons with controlled ABM runs | Pending |
 | 5 | `feat/research-smooth-reduction` | Regularized companion and sensitivity to smoothing | Pending |
 | 6 | `feat/research-bifurcation-analysis` | Continuation, stability/Lyapunov checks, known-answer tests and pilot results | Pending |
@@ -103,3 +103,41 @@ three-seed baseline pilot with verified interruption/resume. Task 2 does not add
 parameter sweeps or implement tasks 3–7. Its branch started at `8fe91d6`.
 Create the task 3 branch from the updated integration branch, including this
 merge and its handoff documentation.
+
+## Task 3 handoff
+
+Implementation commit: `a480c8d`, based on integration commit `f56003d`.
+Draft task PR: [#6](https://github.com/Roman223/Agent_modelling/pull/6).
+The approved task 3 plan extends the initial pilot to all eight combinations of
+closing noise `{0, 0.05}`, dividends `{constant, stochastic}`, and order lifetime
+`{day, persistent}`, at every alpha/gamma coordinate. With seeds 100–104 this is
+568 configurations and 2,840 unique 2,000-day runs. The final 1,000 daily returns
+are retained for analysis. Repeated bounded batches are authorized until the
+full atlas is complete; each batch retains the 120-minute limit and machine caps.
+The execution default remains two workers; after the serial benchmark, the user
+authorized four workers for this full study. The existing ledger was resumed
+with that limit and already completed artifacts were retained.
+
+Market diagnostics are accompanied by Sample Entropy (nats) and fixed-setting
+Rosenstein estimates, with separate fit seeds, known-system checks, and explicit
+undefined results. These are exploratory stochastic-series diagnostics. They do
+not replace task 6's deterministic-map stability and tangent-Lyapunov validation.
+The original stochastic ABM remains the named reference. No model rules or
+legacy metrics were changed. See the [atlas interface](README.md#parameter-atlas-task-3).
+
+All 2,840 simulations and analyses completed, with zero operational failures and
+no missing runs. Both nonlinear estimators produced finite values for 2,557 runs;
+283 entirely inactive analysis windows were explicitly marked constant. All
+67 focused checks and 25 default legacy cases passed. The complete report has
+24 figures in PNG and PDF, per-run records, per-cell coverage/dispersion, and
+compressed numeric tables. The [validation and findings](VALIDATION.md#research-parameter-atlas-task-3-2026-10-27)
+record execution resources, warnings, selected figures, and limitations.
+
+For task 4, retain the alpha=0.1/gamma=2 reference and its eight controls. Add the
+explicitly exploratory alpha=0.2/gamma=0.5, zero-noise/constant-dividend/persistent
+cell (5/5 terminal stalls) and its day-order counterpart as a liquidity contrast.
+Select the stored coordinate by index rather than retyping rounded floating-point
+values. Preserve resource state and accepted-price memory in the reduction, and
+test trading continuity as well as prices. These are comparison anchors, not
+verified bifurcations or deterministic attractors. Create task 4 from the updated
+integration branch only after PR #6 merges. Tasks 4–7 remain unimplemented.

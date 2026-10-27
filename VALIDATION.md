@@ -1,5 +1,190 @@
 # Engineering improvements: validation record
 
+## Research parameter atlas: task 3 (2026-10-27)
+
+Implementation commit: `a480c8d` on `feat/research-parameter-atlas`, branched from
+integration commit `f56003d`. The existing untracked research files were left
+untouched. No simulation, legacy API, bundle format, regression expectation,
+dependency, or task 2 execution source was changed.
+
+The implementation adds a schema-1 experiment generator, separate chronological
+diagnostics, bounded resumable analysis, and exportable maps/curves. It reuses
+the task 2 runner, NumPy, Matplotlib, and installed nolds rather than adding an
+optimization framework or implementing new nonlinear estimators. The relevant
+open-source references are [nolds methods](https://cschoel.github.io/nolds/nolds.html)
+and [its validation examples](https://nolds.readthedocs.io/en/stable/examples.html).
+The complete resolved specification fits the runner's 4 MiB manifest limit
+(approximately 2.37 MB including provenance).
+
+### Automated and manual checks
+
+| Command | Result |
+| --- | --- |
+| `.venv/bin/python tests/test_atlas.py` | 10/10 passed |
+| `.venv/bin/python tests/test_experiments.py` | 18/18 passed |
+| `.venv/bin/python -m unittest discover -s tests -p 'test_core.py'` | 19/19 passed |
+| `.venv/bin/python tests/test_logging.py` | 11/11 passed |
+| `.venv/bin/python tests/test_bundles.py` | 9/9 passed |
+| `.venv/bin/python tests/test_legacy_equivalence.py` | 25/25 passed, exact against `84fa2a6` |
+
+The suites ran in background sessions with output under `/tmp/task3-*.log`.
+Native numerical threads were limited to one. Atlas coverage includes exact
+overlap deduplication and RNG preservation, chronological burn-in and streak
+boundaries, independent entropy template counts, constant/nonfinite/short input,
+known-system validation, partial/undefined aggregation, cache identity and
+corruption, retained cache timestamps on resume, SIGTERM interruption, timeout
+and retry, and masked plot coverage. One in-development rerun detected source
+changes during analysis; the final stable-source run passed. A focused plot
+check passed again after the visual tick-label correction.
+
+The end-to-end CLI smoke study ran eight intervention variants, seed 100,
+120 days with 20 discarded, and completed all simulation/analysis stages and
+48 figure files (24 figures in PNG and PDF) with zero operational failures.
+The smoke heatmap and sweep were visually inspected, overlapping minor log tick
+labels were removed, and the corrected heatmap was inspected again.
+
+### Estimator validation and preliminary benchmark
+
+The independent Sample Entropy fixture enumerates template matches instead of
+calling the estimator twice. The chaotic logistic-map level fixture at r=4 gives
+0.690962 with the explicitly separate short-fit configuration (dimension 2,
+lag 1, exclusion 10, trajectory length 5, polynomial fit), close to ln(2) =
+0.693147 within the prespecified 0.12 tolerance.
+
+Using the production settings on that same level fixture gives 0.015332. The
+period-two r=3.2 fixture has undefined Rosenstein output; the constant fixture
+is explicitly rejected. The seeded Gaussian control gives -0.002402. These
+checks demonstrate why the production estimator is a fixed-setting diagnostic,
+not a calibrated chaos classifier. No sign or magnitude rule is used to assign
+chaotic regimes. Controls and their settings are saved with analysis provenance.
+
+Before scaling, a serial 2,000-day alpha=0.025/gamma=2 stochastic-reference run
+with seed 100 completed in 2.19 seconds, peaked at 83,750,912 bytes worker RSS,
+and wrote 882,686 artifact bytes. Its first analysis took 0.73 seconds inside
+the worker and peaked at 164,700,160 bytes. These are single local measurements,
+not universal throughput guarantees. This preliminary benchmark was performed
+before the final source freeze and is separate from the production atlas.
+
+### Full atlas execution
+
+The full study was launched from implementation commit `a480c8d` with:
+
+```bash
+.venv/bin/python experiments/run_atlas.py study results/task3_atlas_20261027 \
+  > /tmp/task3-study.log 2>&1
+```
+
+Execution ran in background tool sessions. The driver defaults to two workers,
+one native thread each, and repeated batches of at most 120 minutes. After the
+serial benchmark the user authorized four workers, and the study was resumed
+using `--workers 4` with output in `/tmp/task3-study-four-workers.log`. The two
+interrupted simulations were restarted; completed artifacts were retained. The overall
+limits are 6 GiB memory, 5 GiB output, and a 10 GiB free-disk floor. Results,
+ledger, per-stage logs, estimator controls, analysis caches, and figures live
+under the indicated gitignored root.
+
+The simulation stage completed all 2,840 runs with zero failures, from
+12:56:19 to 13:40:21 UTC (44 minutes 2 seconds including the worker-count change).
+There were 2,838 runs with one attempt and two with two attempts. The completed
+artifacts total 1,871,293,401 bytes (1.743 GiB); peak observed worker RSS was
+100,143,104 bytes (95.5 MiB). Summed completed-attempt wall times were 9,437.34
+seconds; this is parallel worker elapsed time, not study wall time or CPU time.
+The analysis stage completed from 13:40:21 to 13:59:33 UTC in 1,151.64 seconds
+(19 minutes 12 seconds), with all 2,840 records complete, zero operational
+failures, and zero missing runs. Peak analysis-worker RSS was 165,163,008 bytes
+(157.5 MiB). The driver exited successfully after rendering. The final managed
+directory is 1,901,971,685 bytes (1.771 GiB), with approximately 35 GiB free disk
+remaining. Neither memory, disk, nor time limits were exceeded.
+
+All market diagnostics have 2,840 finite results except positive-volume-day
+volatility, which is undefined for 283 windows without any positive-volume day.
+Those same 283 windows have constant returns and explicit `constant_series`
+statuses for Sample Entropy and Rosenstein; both estimators are finite for the
+remaining 2,557 runs. Six scikit-learn warnings about R-squared with fewer than
+two samples were retained in fit diagnostics. There were no estimator errors,
+timeouts, or recorded RANSAC-to-polynomial fallback warnings. Finite output is
+not itself a validation of an estimated dynamical exponent.
+
+The analysis identity is
+`ed75999f12c13cfbf7571add2105e356ffd04105bcd0375422b2792c7f7756ff`.
+Its report is under `results/task3_atlas_20261027/reports/<analysis-id>/`.
+All 51 payload hashes in `render.json` were verified. The 52 report files consist
+of 24 PNGs, 24 PDFs, `summary.json`, `per_run.jsonl.gz`, `tables.npz`, and the
+render manifest. The final volatility, stall, and Sample Entropy maps and the
+drawdown sweep were visually inspected. Two representative PNGs (602,174 bytes
+combined) are retained in Git for review; all raw study data remain gitignored.
+
+### Pilot findings
+
+The table below pools 71 distinct parameter coordinates and five seeds per
+variant (355 runs). It describes this particular design, not 355 independent
+replications of one treatment. Brackets show the interquartile range across
+these runs; they are not confidence intervals. Cell-level summaries and figures
+retain the five-seed denominators. Stalls mean at least 100 consecutive no-trade
+days at the end of the retained 1,000-day window.
+
+| Closing noise | Dividends | Orders | Daily volatility %, median [IQR] | Drawdown %, median [IQR] | Terminal stalls |
+| --- | --- | --- | --- | --- | --- |
+| 0.05 | stochastic | persistent | 3.55 [3.23, 3.82] | 56.4 [49.7, 62.3] | 26/355 (7.3%) |
+| 0.05 | stochastic | day | 4.57 [4.24, 4.75] | 83.9 [75.3, 90.1] | 17/355 (4.8%) |
+| 0.05 | constant | persistent | 3.54 [3.18, 3.83] | 56.7 [50.0, 62.5] | 25/355 (7.0%) |
+| 0.05 | constant | day | 4.60 [4.10, 4.73] | 85.1 [76.9, 90.2] | 24/355 (6.8%) |
+| 0 | stochastic | persistent | 0.65 [0.00, 1.34] | 29.2 [0.0, 99.97] | 185/355 (52.1%) |
+| 0 | stochastic | day | 0.69 [0.65, 0.81] | 6.8 [0.7, 64.9] | 8/355 (2.3%) |
+| 0 | constant | persistent | 0.65 [0.00, 1.34] | 29.2 [0.0, 99.97] | 185/355 (52.1%) |
+| 0 | constant | day | 0.69 [0.65, 0.81] | 6.8 [0.7, 64.9] | 8/355 (2.3%) |
+
+The order-lifetime contrast depends on closing noise. At zero noise, day expiry
+has much less terminal inactivity in this design. At noise 0.05, day expiry has
+higher pooled median volatility and drawdown. This does not establish a general
+policy benefit or an optimal setting; fresh seeds and a prespecified comparison
+are needed for confirmation.
+
+High-alpha, zero-noise, persistent-order cells frequently freeze. Zero volatility
+and zero drawdown within an already frozen analysis window measure inactivity;
+they omit losses that may have occurred before burn-in. Dividend-mode rows have
+identical pooled summaries at zero noise in this pilot. The maps also show little
+gamma sensitivity there; the role of fundamentalist participation and allocation
+clipping is a question for controlled follow-up, not a mechanism established by
+these summary statistics.
+
+The baseline coordinate alpha=0.1/gamma=2 under the stochastic reference has
+median daily volatility 3.43%, median window drawdown 53.8%, and 0/5 terminal
+stalls. At that coordinate, removing closing noise with persistent orders gives
+1/5 terminal stalls and median drawdown 99.7%; the day-order control gives 0/5
+terminal stalls and median drawdown 30.6%. Five seeds leave substantial uncertainty.
+Nonlinear estimates remain exploratory; no parameter cell is classified as
+verified chaos, a bifurcation, or a permanent absorbing state.
+
+In these figures, “noise” denotes closing-price noise scale. Trader composition
+stays at the baseline. Each number is the valid/expected seed count; nonlinear
+maps explicitly mask cells with undefined seed results.
+
+![Daily volatility atlas](experiments/figures/task3_20261027/log_return_volatility_map.png)
+
+![Terminal-stall atlas](experiments/figures/task3_20261027/terminal_stall_map.png)
+
+### Reproduction and task 4 handoff
+
+Use the commands in the [README](README.md#parameter-atlas-task-3) with execution
+source `a480c8d` and `requirements-lock.txt`. Subsequent documentation/figure
+commits do not change the execution sources. To recompute analysis summaries,
+resume `analyze` and then `render`; per-cell values are in `summary.json`, and
+`per_run.jsonl.gz` supplies the scalar records for the pooled table. The
+specification and immutable manifest supply the run-to-parameter mapping.
+
+Start task 4 from the integration branch after PR #6 merges. Keep alpha=0.1,
+gamma=2 and its eight variants as the fixed comparison reference. A selected
+liquidity contrast is alpha≈0.2/gamma=0.5 with zero closing noise and constant
+dividends, comparing persistent orders (5/5 terminal stalls) with day expiry.
+Use grid alpha index 6 (sweep index 12) and gamma index 0: the stored alpha is
+`0.19999999999999998`, so selecting by index avoids a run-identity mismatch from
+retyping a rounded number. These anchors were selected after inspection and
+are exploratory. Validate resource accounting, accepted-price memory, and
+trading continuity before interpreting a deterministic reduction's attractors.
+No deterministic reduction, continuation, bifurcation verification, or MF-DFA
+was implemented in this task.
+
 ## Research experiment runner: task 2 (2026-10-27)
 
 Implemented on `feat/research-experiment-runner`, based on integration commit

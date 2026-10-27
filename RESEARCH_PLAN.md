@@ -1,6 +1,7 @@
 # Emergent dynamics research: PR integration plan
 
 Integration branch: `research/emergent-dynamics`.
+Integration PR: [#3](https://github.com/Roman223/Agent_modelling/pull/3).
 Final target: `main`, through a draft integration PR that remains open until the
 selected research plan is complete. The scope is research phases 1, 2, 3, and 5:
 parameter discovery, deterministic reductions, bifurcation verification, and
@@ -16,7 +17,7 @@ PR focused on that task's changes. Use merge commits to retain the task history.
 
 | Task | Branch | Deliverable | Status |
 | --- | --- | --- | --- |
-| 1 | `feat/research-parameter-controls` | Python/CLI controls, compatibility checks, logging and bundle replay | Implemented; integration PR pending |
+| 1 | `feat/research-parameter-controls` | Python/CLI controls, compatibility checks, logging and bundle replay | Merged via [PR #4](https://github.com/Roman223/Agent_modelling/pull/4) |
 | 2 | `feat/research-experiment-runner` | Resumable experiments, compact artifacts, provenance and resource limits | Pending |
 | 3 | `feat/research-parameter-atlas` | One-dimensional sweeps and coarse two-dimensional parameter maps | Pending |
 | 4 | `feat/research-hard-reduction` | Hard-rule deterministic reduction and comparisons with controlled ABM runs | Pending |
@@ -83,6 +84,7 @@ merged into `main` only after the remaining tasks and their required checks pass
 
 ## Task 1 handoff
 
+Implementation commit: `58ab641`; integration merge commit: `725ffdf`.
 The five controls are documented in the [README](README.md#research-parameter-controls).
 The [validation record](VALIDATION.md#research-parameter-controls-task-1-2026-10-27)
 lists changed files, commands, results, and limitations. All 39 focused checks and

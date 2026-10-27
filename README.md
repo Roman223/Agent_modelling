@@ -135,6 +135,7 @@ runtime; this change does not bypass provenance checks.
 These controls complete task 1 of the research plan. Experiment infrastructure,
 parameter sweeps, deterministic reductions, bifurcation analysis, and multifractal
 analysis remain pending (tasks 2–7).
+The branch and PR merge sequence is tracked in [RESEARCH_PLAN.md](RESEARCH_PLAN.md).
 
 ## How the model works
 

@@ -1,7 +1,7 @@
 """Logging neutrality, reconciliation, bounded export, and replay checks."""
 
 from collections import defaultdict
-from dataclasses import asdict
+from dataclasses import asdict, replace
 import gzip
 import json
 from pathlib import Path
@@ -9,7 +9,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -29,7 +29,12 @@ from test_core import assert_rng_equal
 
 class LoggingTests(unittest.TestCase):
     def test_modes_preserve_all_scenarios_and_analysis_rng(self):
-        for name, scenario in SCENARIOS.items():
+        cases = list(SCENARIOS.items()) + [
+            (name, replace(SCENARIOS[name], chartist_alpha=0.3, fundamentalist_gamma=4,
+                           closing_noise_scale=0, dividend_mode='constant', order_lifetime='day'))
+            for name in ('baseline', 'evolution', 'circuit_breaker')
+        ]
+        for name, scenario in cases:
             baseline = None
             for level in ('off', 'summary', 'trades', 'decisions'):
                 with self.subTest(scenario=name, level=level):
@@ -48,6 +53,49 @@ class LoggingTests(unittest.TestCase):
                         assert_rng_equal(self, state, np.random.get_state())
                         assert_rng_equal(self, sim_state, result.rng_state_after)
                     result.run_log.cleanup()
+
+    def test_day_expiry_follows_summaries_and_prevents_next_day_fills(self):
+        for lifetime in ('persistent', 'day'):
+            for level in ('off', 'summary', 'decisions'):
+                with self.subTest(lifetime=lifetime, level=level):
+                    buyer, seller = NoiseTrader(2000, 10), NoiseTrader(0, 10)
+                    buyer.make_decision = Mock(side_effect=[('buy', 101, 5), (None, None, None)])
+                    seller.make_decision = Mock(side_effect=[('sell', 99, 2), ('sell', 99, 3)])
+                    scenario = replace(SCENARIOS['baseline'], noise=2, chartists=0, fundamentalists=0,
+                                       order_lifetime=lifetime, closing_noise_scale=0)
+                    np.random.seed(0)
+                    with patch('src.simulation._create_traders', return_value=[buyer, seller]):
+                        result = simulation.simulate(scenario, days=2, log_options=LogOptions(level=level))
+                    self.addCleanup(result.run_log.cleanup)
+                    self.assertEqual(buyer.assets, 12 if lifetime == 'day' else 15)
+                    if level == 'off':
+                        self.assertEqual(list(result.run_log.iter_records('events')), [])
+                        continue
+                    steps = [r for r in result.run_log.iter_records('steps') if r['phase'] == 'trading']
+                    self.assertEqual([r['volume'] for r in steps], [2, 0] if lifetime == 'day' else [2, 3])
+                    self.assertEqual(steps[0]['price_formation']['proposed_price'], 100)
+                    self.assertEqual(steps[0]['outstanding_buy_quantity'], 3)
+                    expired = [r for r in result.run_log.iter_records('events') if r['event'] == 'orders_expired']
+                    if lifetime == 'persistent':
+                        self.assertEqual(expired, [])
+                        continue
+                    self.assertEqual(len(expired), 2)
+                    for event, step in zip(expired, steps):
+                        self.assertEqual(event['phase'], 'trading')
+                        self.assertEqual(event['day'], step['day'])
+                        for name in ('buy_orders', 'sell_orders', 'buy_quantity', 'sell_quantity'):
+                            self.assertEqual(event[name], step['outstanding_' + name])
+
+    def test_day_expiry_emits_no_event_when_all_orders_fill(self):
+        buyer, seller = NoiseTrader(2000, 10), NoiseTrader(0, 10)
+        buyer.make_decision = Mock(return_value=('buy', 101, 2))
+        seller.make_decision = Mock(return_value=('sell', 99, 2))
+        scenario = replace(SCENARIOS['baseline'], noise=2, chartists=0, fundamentalists=0,
+                           order_lifetime='day')
+        with patch('src.simulation._create_traders', return_value=[buyer, seller]):
+            result = simulation.simulate(scenario, days=1)
+        self.addCleanup(result.run_log.cleanup)
+        self.assertEqual(list(result.run_log.iter_records('events')), [])
 
     def test_summaries_reconcile_to_trades_decisions_and_wealth(self):
         np.random.seed(4)

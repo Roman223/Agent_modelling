@@ -1,5 +1,66 @@
 # Engineering improvements: validation record
 
+## Research parameter controls: task 1 (2026-10-27)
+
+Implemented on `feat/research-parameter-controls`, branched from `6bd3467`.
+Existing untracked research files were preserved. No dependencies were added,
+and no research sweeps were started. Tasks 2–7 remain pending.
+
+Changed files and responsibilities:
+
+| Files | Change |
+| --- | --- |
+| `src/scenarios.py`, `experiments/run_scenario.py` | Five validated keyword-only controls, numeric scalar normalization, immutable CLI overrides, resolved run header |
+| `src/asset.py`, `src/order_book.py`, `src/simulation.py` | Dividend and closing-noise controls, day-order expiry, initial/evolved trader parameter propagation |
+| `src/bundles.py` | Effective control values in the existing schema-1 configuration; unchanged strict replay checks |
+| `tests/test_core.py`, `tests/test_logging.py`, `tests/test_bundles.py` | Control semantics, compatibility, logging neutrality, custom replay, and CLI validation |
+| `README.md`, `VALIDATION.md` | Usage, behavior, compatibility limits, and this handoff |
+
+Validation commands and results:
+
+| Command | Result |
+| --- | --- |
+| `.venv/bin/python -m unittest discover -s tests -p 'test_core.py'` | 19/19 passed |
+| `.venv/bin/python tests/test_bundles.py` | 9/9 passed |
+| `.venv/bin/python tests/test_logging.py` | 11/11 passed |
+| `.venv/bin/python tests/test_legacy_equivalence.py` | 25/25 passed, 250 days, exact results and final RNG states against `84fa2a6` |
+
+Checks ran as background tool sessions with output redirected to
+`/tmp/abm-task1-core.log`, `/tmp/abm-task1-bundles.log`,
+`/tmp/abm-task1-logging.log`, and `/tmp/abm-task1-legacy.log`.
+`OPENBLAS_NUM_THREADS`, `OMP_NUM_THREADS`, and `MKL_NUM_THREADS` were each set to
+`1`; `MPLCONFIGDIR=/tmp/abm-task1-matplotlib` provided a writable plotting cache.
+Existing nolds/scikit-learn estimator warnings remained visible. No estimator or
+legacy expectation was changed. The extended 1,000-day suite was not run for this task.
+
+The focused checks cover parameter validation before logs/RNG use, positional
+constructor compatibility, frozen scenarios, initial and evolved trader controls,
+known order quantities, closing-price arithmetic/floors/halts, both dividend shock
+branches, constant dividends during warmup and halts, and partial-order expiry.
+Scripted two-day markets confirm that expired orders cannot fill on the next day
+and that expiry events reconcile with pre-expiry summaries. Logging modes agree
+for all eight default scenarios and three combined-control scenarios. Bundle
+checks exercise each control separately, all controls with evolution, NumPy scalar
+inputs, custom CLI output, exact replay, caller RNG restoration, and rejection of
+tampered effective settings.
+
+Task 2 can use `dataclasses.replace(SCENARIOS[name], ...)` with `chartist_alpha`,
+`fundamentalist_gamma`, `closing_noise_scale`, `dividend_mode`, and `order_lifetime`,
+then call the unchanged `simulate`, `analyze_result`, `save_bundle`, and
+`replay_bundle` interfaces. See the README for ranges, defaults, and CLI flags.
+Day-order events contain counts and remaining quantities by side; daily book
+summaries still describe the state after matching and before expiry.
+
+Retained limits: the global NumPy RNG remains shared, and equal seeds do not
+guarantee aligned future draws across interventions. Constant dividends and zero
+closing noise retain their original draws. Evolved chartists keep their legacy
+20-observation window. Existing circuit-breaker/evolution behavior remains intact.
+Historical bundles require their recorded source and runtime; source hashes do
+not archive dirty changes. The experiment runner, atlas, hard and smooth reductions,
+bifurcation toolkit, and multifractal pipeline are still pending.
+
+## Earlier engineering validation (2026-10-21)
+
 Validated on 2026-10-21 on branch `improvements/reproducibility-and-structure`.
 The branch starts at `450c168`; numerical comparisons use the original notebook
 at `84fa2a6`. No model rules or regression expectations were revised.

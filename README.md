@@ -64,6 +64,78 @@ Counts are initial populations. Configurations and shared endowments live in
 [`src/scenarios.py`](src/scenarios.py). Add a `Scenario` there to expose it through
 the runner automatically.
 
+## Research parameter controls
+
+The following keyword-only `Scenario` fields expose existing model parameters
+and optional interventions. Defaults retain the original model and random-draw
+ordering. Existing positional `Scenario` arguments are unchanged.
+
+| Python field | CLI flag | Default | Accepted values |
+| --- | --- | --- | --- |
+| `chartist_alpha` | `--chartist-alpha` | `0.1` | Finite real, `0 < value <= 1` |
+| `fundamentalist_gamma` | `--fundamentalist-gamma` | `2` | Finite real, `value > 0` |
+| `closing_noise_scale` | `--closing-noise-scale` | `0.05` | Finite real, `value >= 0` |
+| `dividend_mode` | `--dividend-mode` | `stochastic` | `stochastic`, `constant` |
+| `order_lifetime` | `--order-lifetime` | `persistent` | `persistent`, `day` |
+
+Booleans, nonnumeric values, NaN, infinity, and invalid choices are rejected
+before logs, RNG draws, or output directories are created. Numeric controls from
+NumPy and other real scalar types are normalized to native Python numbers so
+their arithmetic precision is retained on JSON replay.
+
+```bash
+.venv/bin/python experiments/run_scenario.py baseline --days 250 --seed 0 \
+  --chartist-alpha 0.3 --fundamentalist-gamma 4 --closing-noise-scale 0 \
+  --dividend-mode constant --order-lifetime day --bundle results --no-show
+```
+
+Omitted flags retain the selected scenario's settings. The run header prints all
+five resolved controls. To create a configuration in Python without changing the
+shared scenario registry:
+
+```python
+from dataclasses import replace
+import numpy as np
+from src import SCENARIOS, simulation
+
+scenario = replace(SCENARIOS["baseline"], chartist_alpha=0.3,
+                   fundamentalist_gamma=4, closing_noise_scale=0,
+                   dividend_mode="constant", order_lifetime="day")
+np.random.seed(0)
+result = simulation.simulate(scenario, days=250)
+```
+
+Allocation and risk parameters also apply to traders created by evolution.
+Evolved chartists retain the legacy 20-observation window, even when initial
+chartists use a different window. Closing noise changes only the coefficient in
+`VWAP * (1 + closing_noise_scale * liquidity_factor * normal_draw)`; the price
+floor and circuit-breaker behavior remain in effect.
+
+Constant dividends are `0.016` throughout initialization, warmup, trading, and
+halts. The stochastic dividend draws (including conditional shocks) still occur
+before the proposed dividend is replaced. A zero closing-noise coefficient also
+retains the normal draw after executions; no executions still means no closing
+draw or price update. Warmup prices and trader decisions/quotes remain random.
+Equal seeds do not guarantee identical later shock paths across interventions:
+changed decisions and executions can change subsequent draw consumption.
+
+Day orders expire at the end of each trading day, after the existing daily
+summaries, including any partial-fill remainders. Nothing carries into the next
+day. An `orders_expired` event reports remaining `buy_orders`, `sell_orders`,
+`buy_quantity`, and `sell_quantity` when there are residual orders. Expiry also
+occurs with logging disabled. Persistent mode has no expiry.
+
+Bundles retain schema version 1 and their existing file layout. The scenario
+configuration includes all five controls; `shared_parameters` reports the actual
+alpha/gamma, and `fixed_rules` records the resolved dividend mode, closing noise,
+and order lifetime. Custom controls replay under the same strict source/runtime
+checks as default runs. Older bundles still require their recorded source and
+runtime; this change does not bypass provenance checks.
+
+These controls complete task 1 of the research plan. Experiment infrastructure,
+parameter sweeps, deterministic reductions, bifurcation analysis, and multifractal
+analysis remain pending (tasks 2–7).
+
 ## How the model works
 
 - **Noise traders** place randomized buy and sell orders.
@@ -159,7 +231,7 @@ in `analysis.json`.
 | --- | --- |
 | `logs/steps.jsonl.gz` | Each warm-up step and trading day: price, simple return, dividend; trading rows also contain trade count/volume/notional, closing spread and outstanding orders, halt state, and price formation |
 | `logs/strategies.jsonl.gz` | Each trading day/type: submitted buy/sell order counts and quantities, executed buy/sell volume and notional, active population, total cash/holdings/wealth, average cash/wealth |
-| `logs/events.jsonl.gz` | Circuit-breaker triggers and resumptions, skipped trading days, evolution links and selection rule, resource-based deactivations; absent if no events occurred |
+| `logs/events.jsonl.gz` | Circuit-breaker triggers and resumptions, skipped trading days, evolution links and selection rule, resource-based deactivations, day-order expiry; absent if no events occurred |
 | `logs/trades.jsonl.gz` | Optional: each fill's buyer/seller IDs and types, execution price/quantity, cash and holdings immediately before and after |
 | `logs/decisions.jsonl.gz` | Optional: each evaluated trader's inputs, decision reason, intended order, cash/holdings, and whether an order was submitted |
 | `logs/metadata.json` | Log schema version, options, filenames, written counts, caps, and omitted detail counts |
@@ -232,8 +304,9 @@ Interpretation details:
 - `phase` distinguishes warm-up from trading in step/event records. The other
   streams refer only to trading days. Step `return` is the simple price change
   against that step's starting price; nonlinear metrics still use log-returns.
-- Trading summaries describe the book **after matching**. Outstanding quantities
-  include persistent, possibly unaffordable orders. The spread is `null` if either
+- Trading summaries describe the book **after matching and before expiry**.
+  Outstanding quantities can include persistent, possibly unaffordable orders.
+  Day-order expiry events reconcile to these quantities. The spread is `null` if either
   side is empty; it can remain crossed when matching cannot proceed.
 - `price_formation` records VWAP, liquidity factor, the proposed noisy price before
   and after the floor, and whether the asset accepted it. No executions means
@@ -289,13 +362,13 @@ individual diagnostic, call `metric_result("lyapunov", prices, emb_dim=10, lag=1
 
 ## Reproducibility and model caveats
 
-This refactor preserves the original notebook's numerical behavior. In particular:
+Default settings preserve the original notebook's numerical behavior. In particular:
 
 - Random draws use the global NumPy stream. RANSAC metric fitting also uses
   randomness; seed before each run or standalone metric calculation. Dependency
   versions can affect results.
 - Prices include a 20-step exogenous geometric Brownian motion warm-up.
-- Unmatched orders persist between days. Large populations and long runs can be
+- Unmatched orders persist between days by default. Large populations and long runs can be
   slow as the order book grows.
 - Group wealth plots show means over active traders, rather than total wealth.
   Evolved traders are omitted from the original-trader profitability report.
@@ -336,8 +409,8 @@ Multiagent_Modelling_notebook.ipynb
 
 ## Development and validation
 
-The current focus is code organization, readability, and English documentation.
-Model changes, ensemble studies, and new estimators are separate research work.
+Research controls are opt-in and preserve the original defaults. Experiment
+infrastructure, ensemble studies, reductions, and new estimators remain separate work.
 Keep reusable logic in `src/`, scenarios in the configuration module, and preserve
 random-draw order when refactoring.
 

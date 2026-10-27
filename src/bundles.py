@@ -70,19 +70,25 @@ def _provenance():
 
 
 def effective_configuration(result):
-    """Record scenario overrides and fixed legacy settings beside the source hash.
+    """Record effective scenario controls and legacy rules beside the source hash.
 
-    These fixed settings document the implementation, not additional model knobs.
-    Replay also verifies source hashes so fixed-rule changes cannot go unnoticed.
+    Retain the schema-1 layout, resolving configurable values in its existing
+    sections. Replay also verifies source hashes so rule changes cannot go unnoticed.
     """
+    scenario = result.scenario
+    shared = {key: value for key, value in vars(scenarios).items()
+              if key.isupper() and key not in ('SCENARIOS',)}
+    shared.update(CHARTIST_ALPHA=scenario.chartist_alpha,
+                  FUNDAMENTALIST_GAMMA=scenario.fundamentalist_gamma)
     return {
-        'scenario': asdict(result.scenario), 'days': result.days,
-        'shared_parameters': {key: value for key, value in vars(scenarios).items()
-                              if key.isupper() and key not in ('SCENARIOS',)},
+        'scenario': asdict(scenario), 'days': result.days,
+        'shared_parameters': shared,
         'fixed_rules': {
             'initial_price': 100, 'initial_dividend': 0.016,
             'warmup': {'steps': 20, 'drift': 0.0003, 'volatility': 0.02},
-            'dividends': {'drift': 0.0008, 'volatility': 0.0008,
+            'dividends': {'mode': scenario.dividend_mode, 'constant_value': 0.016,
+                          'retains_random_draws': True,
+                          'drift': 0.0008, 'volatility': 0.0008,
                           'shock_probability': 0.01, 'shock_scale': 0.005, 'floor': 0},
             'circuit_breaker': {'threshold': 0.20, 'duration': 5},
             'evolution': {'interval': 100, 'noise_to_chartist': 2,
@@ -93,7 +99,10 @@ def effective_configuration(result):
             'fundamentalist': {'excess_return_threshold': 0.05, 'risk_scale': 0.1,
                                'allocation_min': 0.1, 'allocation_max': 0.9,
                                'buy_multiplier': 1.01, 'sell_multiplier': 0.99},
-            'matching': {'noise_scale': 0.05, 'liquidity_scale': 1000, 'price_floor': 0.01},
+            'matching': {'noise_scale': scenario.closing_noise_scale,
+                         'liquidity_scale': 1000, 'price_floor': 0.01,
+                         'order_lifetime': scenario.order_lifetime,
+                         'expiry_timing': 'after_daily_summaries' if scenario.order_lifetime == 'day' else None},
             'status_interval': 100, 'initial_wealth_price': 100,
         },
     }

@@ -107,9 +107,11 @@ def _simulate(scenario, days, verbose, run_log):
     history = {key: [] for key in ('days', 'noise_avg', 'chartist_avg', 'fundamentalist_avg')}
     log = print if verbose else (lambda *args, **kwargs: None)
     asset = Asset(circuit_breaker=scenario.circuit_breaker_asset, log=log,
-                  event=run_log.event if run_log.enabled else None)
+                  event=run_log.event if run_log.enabled else None,
+                  dividend_mode=scenario.dividend_mode)
     asset.run_log = run_log
-    order_book = OrderBook()
+    order_book = OrderBook(closing_noise_scale=scenario.closing_noise_scale,
+                           order_lifetime=scenario.order_lifetime)
     traders = _create_traders(scenario)
     run_log.register(traders)
 
@@ -142,7 +144,9 @@ def _simulate(scenario, days, verbose, run_log):
 
         # Strategy changes every 100 days.
         if scenario.evolution and day % 100 == 0 and day > 0:
-            _evolve_traders(traders, day, asset.evolution_log, log, run_log)
+            _evolve_traders(traders, day, asset.evolution_log, log, run_log,
+                            chartist_alpha=scenario.chartist_alpha,
+                            fundamentalist_gamma=scenario.fundamentalist_gamma)
 
         trading_halted = asset.check_halt_status() if scenario.halt_check else False
 
@@ -185,6 +189,10 @@ def _simulate(scenario, days, verbose, run_log):
         # Sample group statistics every 100 days and on the final day.
         if day % 100 == 0 or day == days-1:
             _record_status(day, asset, traders, scenario, trading_halted, log, history)
+
+        expired = order_book.expire_day_orders()
+        if expired is not None:
+            run_log.event('orders_expired', **expired)
 
     return SimulationResult(scenario, days, asset, traders, history, initial_wealths,
                             rng_state_before, np.random.get_state(), run_log=run_log)
@@ -238,23 +246,24 @@ def _create_traders(scenario):
     for _ in range(scenario.chartists):
         traders.append(ChartistTrader(
             cash=CHARTIST_CASH, assets=CHARTIST_ASSETS,
-            window=scenario.chartist_window, alpha=CHARTIST_ALPHA,
+            window=scenario.chartist_window, alpha=scenario.chartist_alpha,
         ))
     for _ in range(scenario.fundamentalists):
         traders.append(FundamentalistTrader(
             cash=FUNDAMENTALIST_CASH, assets=FUNDAMENTALIST_ASSETS,
-            gamma=FUNDAMENTALIST_GAMMA, rf=RISK_FREE_RATE,
+            gamma=scenario.fundamentalist_gamma, rf=RISK_FREE_RATE,
         ))
     return traders
 
 
-def _evolve_traders(traders, day, evolution_log, log, run_log=None):
+def _evolve_traders(traders, day, evolution_log, log, run_log=None, *,
+                    chartist_alpha=CHARTIST_ALPHA, fundamentalist_gamma=FUNDAMENTALIST_GAMMA):
     log(f"\nTrader evolution on day {day}")
     noise_traders_list = [t for t in traders if t.type == 'noise' and t.active]
     if len(noise_traders_list) >= 2:
         traders_to_evolve = np.random.choice(noise_traders_list, 2, replace=False)
         for trader in traders_to_evolve:
-            new_chartist = ChartistTrader(cash=trader.cash, assets=trader.assets, window=20, alpha=CHARTIST_ALPHA)
+            new_chartist = ChartistTrader(cash=trader.cash, assets=trader.assets, window=20, alpha=chartist_alpha)
             new_chartist.wealth_history = trader.wealth_history.copy()
             traders.append(new_chartist)
             trader.active = False
@@ -267,7 +276,7 @@ def _evolve_traders(traders, day, evolution_log, log, run_log=None):
     if len(chartist_traders_list) >= 1:
         trader_to_evolve = np.random.choice(chartist_traders_list, 1)[0]
         new_fundamentalist = FundamentalistTrader(cash=trader_to_evolve.cash, assets=trader_to_evolve.assets,
-                                                  gamma=FUNDAMENTALIST_GAMMA, rf=RISK_FREE_RATE)
+                                                  gamma=fundamentalist_gamma, rf=RISK_FREE_RATE)
         new_fundamentalist.wealth_history = trader_to_evolve.wealth_history.copy()
         traders.append(new_fundamentalist)
         trader_to_evolve.active = False

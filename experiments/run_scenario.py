@@ -5,6 +5,7 @@
     python experiments/run_scenario.py --list
 """
 import argparse
+from dataclasses import replace
 import os
 import sys
 
@@ -32,6 +33,13 @@ def main():
     parser.add_argument('--list', action='store_true', help='list scenarios and exit')
     parser.add_argument('--days', type=int, default=1000)
     parser.add_argument('--seed', type=int, default=None, help='np.random.seed; unseeded if omitted')
+    parser.add_argument('--chartist-alpha', type=float, help='chartist allocation, 0 < alpha <= 1')
+    parser.add_argument('--fundamentalist-gamma', type=float, help='fundamentalist risk parameter, gamma > 0')
+    parser.add_argument('--closing-noise-scale', type=float, help='nonnegative closing-price noise coefficient')
+    parser.add_argument('--dividend-mode', choices=('stochastic', 'constant'),
+                        help='dividend process; constant uses 0.016 while retaining random draws')
+    parser.add_argument('--order-lifetime', choices=('persistent', 'day'),
+                        help='retain unmatched orders, or expire them after daily summaries')
     output = parser.add_mutually_exclusive_group()
     output.add_argument('--save', metavar='DIR', default=None,
                         help='save PNGs as DIR/<scenario>_*.png (relative paths are under the repo root)')
@@ -73,14 +81,19 @@ def main():
     if args.scenario is None:
         parser.error('scenario is required')
 
-    scenario = SCENARIOS[args.scenario]
+    controls = ('chartist_alpha', 'fundamentalist_gamma', 'closing_noise_scale',
+                'dividend_mode', 'order_lifetime')
     try:
+        scenario = replace(SCENARIOS[args.scenario], **{
+            name: getattr(args, name) for name in controls if getattr(args, name) is not None
+        })
         scenario.validate()
     except ValueError as error:
         parser.error(str(error))
     if args.seed is not None:
         np.random.seed(args.seed)
     print(f'SCENARIO: {scenario.title} ({scenario.noise} / {scenario.chartists} / {scenario.fundamentalists})')
+    print('CONTROLS: ' + ', '.join(f'{name}={getattr(scenario, name)}' for name in controls))
     if args.bundle:
         from src.bundles import save_bundle
         result = simulation.simulate(scenario, days=args.days, verbose=True, log_options=log_options)

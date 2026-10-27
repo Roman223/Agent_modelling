@@ -47,6 +47,115 @@ dependencies from CPython 3.12.9 on Linux x86_64. `requirements.txt` remains the
 minimum-version dependency list. Exact reproduction also requires the same source,
 configuration, and RNG state; a seed alone does not guarantee results across versions.
 
+## Parameter atlas (task 3)
+
+The atlas crosses chartist alpha and fundamentalist gamma with all eight
+combinations of closing noise `{0, 0.05}`, dividends `{constant, stochastic}`,
+and order lifetime `{day, persistent}`. The stochastic/persistent/noise-0.05
+variant is the named legacy stochastic reference. Composition and endowments
+are baseline, the SMA window is 20, and evolution and both breaker switches are
+off. Removing these stochastic inputs does not make trader decisions deterministic.
+
+The design has a 17-point geometric alpha sweep from 0.025 to 0.4 at gamma 2,
+plus a 9-by-7 map with gamma from 0.5 to 8. Grid alpha values are taken directly
+from every second sweep value. Five seeds (100–104), 2,000 trading days, and a
+1,000-day burn-in give 568 configurations and 2,840 unique runs after overlap
+deduplication. Seeds are the outer execution loop; variants alternate at each
+coordinate. Equal seeds do not guarantee aligned shocks across variants.
+
+Run the complete study in the background, redirecting driver output to a log:
+
+```bash
+.venv/bin/python experiments/run_atlas.py study results/task3_atlas_20261027 \
+  > /tmp/task3-study.log 2>&1 &
+```
+
+Repeating that command resumes the study. The driver benchmarks the first
+simulation and analysis in each invocation, repeats only time-limited batches
+(120 minutes by default), and stops on failures or resource limits. Defaults are
+two workers and one native numerical thread each. `--workers` accepts 1–6 and
+`--minutes` accepts up to 120. The simulation gets 4.5 GiB of the total 5 GiB disk
+budget; analysis and figures share the remainder. Child coordinators get a
+5.5 GiB memory budget, leaving headroom inside the 6 GiB total for the small
+driver. All stages preserve a 10 GiB free-disk floor. Do not run simulation and
+analysis concurrently; both take the experiment lock.
+
+Individual stages and Python interfaces are also available:
+
+```bash
+.venv/bin/python experiments/run_atlas.py generate /tmp/atlas-spec.json
+.venv/bin/python experiments/run_experiment.py run /tmp/atlas-spec.json \
+  results/my_atlas/simulation --output-gib 4.5
+.venv/bin/python experiments/run_atlas.py analyze results/my_atlas/simulation
+.venv/bin/python experiments/run_atlas.py render results/my_atlas/simulation
+.venv/bin/python experiments/run_atlas.py validate-estimators /tmp/atlas-controls.json
+.venv/bin/python tests/test_atlas.py
+```
+
+`src.atlas.make_spec`, `analyze_arrays`, and `aggregate` are reusable numerical
+interfaces. `src.atlas_runner.analyze_experiment` is a CLI coordinator entry
+after process-limit bootstrap; use the CLI from an ordinary Python application.
+`src.atlas_plotting.render_atlas` creates figures. Custom small specifications can
+be generated using `make_spec(seeds=..., days=..., burn_in=...)` and validated
+using the existing `expand_spec`. Run directories must be nested under a
+dedicated atlas root, as shown above: the parent contains analysis and reports
+and is the scope of the total disk quota.
+
+Analysis reads one validated compact run at a time and never loads daily
+ensemble tables into pandas. It uses the stored chronological daily log returns
+in `[burn_in, days)`, including zero-volume days and the actual preceding price
+for drawdown. These research metrics use calendar trading days; legacy report
+helpers retain their price-observation inputs. Volatility uses `ddof=1`;
+positive-volume volatility needs two trading days. Streak lengths count days
+within the retained window. Terminal
+stall incidence is the proportion of runs with at least 100 terminal no-trade
+days. Other outputs include final price, window log return, mean daily volume,
+drawdown, zero-volume fraction, and longest/terminal no-trade streaks.
+
+The separate research wrapper reuses installed `nolds` without changing the
+legacy metrics API. Sample Entropy (nats) uses dimension 3, lag 1, Chebyshev
+distance, an open tolerance interval, and tolerance `0.2 * std(returns, ddof=0)`.
+The Rosenstein estimate (per trading day) uses dimension 10, lag 1, temporal
+exclusion 20, trajectory length 20, fit offset 0, `tau=1`, and RANSAC. A separate
+fit seed is the first eight hex digits of SHA256 of canonical JSON
+`[simulation_seed, "rosenstein"]`; global RNG state is restored after fitting.
+Settings, fit trajectories, warnings (including any library fit fallback), and
+runtime/source fingerprints accompany results. Constant/nonfinite/short inputs
+and nonfinite results have explicit statuses. No jitter, sample removal, or
+segment stitching is used. Each worker has a five-minute timeout.
+
+Analysis records are checksummed and published atomically under
+`analysis/<analysis-id>/runs/`. Their identity includes settings, analysis source
+and dependencies, simulation run ID, and artifact completion-manifest hash.
+Invalid cache records are recomputed; corrupt simulation input is rejected.
+Operational failures stop completion and can be retried with `analyze --retry-failed`.
+Changing analysis settings or source creates a separate cache. Changing any
+`src` file also changes the existing simulation fingerprint: freeze execution
+sources before a study, and restore recorded source to resume historical runs.
+Historical rendering accepts `--analysis-id` without requiring current model source.
+
+Reports contain `summary.json` (per-cell quartiles, valid/expected seed counts,
+and status counts), `per_run.jsonl.gz`, `tables.npz` (load with
+`allow_pickle=False`), and 24 figures in both PNG and PDF. Heatmaps share scales
+across interventions and mask incomplete/undefined cells; sweep bands show
+quartiles and mark partial estimates. Stall plots use frequencies rather than
+medians of binary indicators. `render.json` records output hashes and coverage.
+
+Five seeds support exploration, not confirmatory inference. Quartile bands are
+between-seed dispersion, not confidence intervals. Rosenstein estimates on these
+short stochastic return series are diagnostics, not evidence of deterministic
+chaos. Known-system validation uses logistic-map **levels** and an explicitly
+separate short-fit configuration; production settings are also checked on
+periodic, chaotic, constant, and Gaussian controls. See
+[nolds methods](https://cschoel.github.io/nolds/nolds.html) and
+[validation examples](https://nolds.readthedocs.io/en/stable/examples.html).
+
+The [completed task 3 study](VALIDATION.md#research-parameter-atlas-task-3-2026-10-27)
+records all 2,840 simulations and analyses, findings, limitations, and task 4
+anchors. Representative [volatility](experiments/figures/task3_20261027/log_return_volatility_map.png)
+and [terminal-stall](experiments/figures/task3_20261027/terminal_stall_map.png) maps
+are retained in Git; the full 24-figure set and compact data remain under `results/`.
+
 ## Scenarios
 
 | Scenario | Noise | Chartists | Fundamentalists | Variation |

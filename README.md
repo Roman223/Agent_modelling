@@ -132,10 +132,149 @@ and order lifetime. Custom controls replay under the same strict source/runtime
 checks as default runs. Older bundles still require their recorded source and
 runtime; this change does not bypass provenance checks.
 
-These controls complete task 1 of the research plan. Experiment infrastructure,
-parameter sweeps, deterministic reductions, bifurcation analysis, and multifractal
-analysis remain pending (tasks 2–7).
+These controls complete task 1 of the research plan. The task 2 experiment runner
+is described below. Parameter sweeps, deterministic reductions, bifurcation
+analysis, and multifractal analysis remain pending (tasks 3–7).
 The branch and PR merge sequence is tracked in [RESEARCH_PLAN.md](RESEARCH_PLAN.md).
+
+## Resumable research experiments
+
+The Linux experiment runner executes explicit, seeded cells in isolated processes.
+It preserves the simulation loop and uses its streamed logs to retain every
+trading day, including days without trades or price updates. It does not run the
+legacy nonlinear estimators or create plots. No additional dependency is needed.
+
+```bash
+.venv/bin/python experiments/run_experiment.py validate experiments/specs/baseline_pilot.json
+mkdir -p results
+nohup .venv/bin/python experiments/run_experiment.py run experiments/specs/baseline_pilot.json results/task2-pilot > results/task2-pilot-console.log 2>&1 &
+.venv/bin/python experiments/run_experiment.py status results/task2-pilot
+nohup .venv/bin/python experiments/run_experiment.py resume results/task2-pilot --workers 2 --minutes 120 >> results/task2-pilot-console.log 2>&1 &
+```
+
+`run` requires a new destination. `resume` uses the immutable specification already
+stored there. It validates and skips completed runs and restarts interrupted runs
+from their seeds; it does not checkpoint a simulation partway through. Failed or
+corrupt runs require `resume --retry-failed`. A lock prevents concurrent writers.
+Exit codes are 0 for all runs complete, 2 for an incomplete batch (budget, signal,
+or run failure), and 1 for an invalid request or supervisor error. `status` reads
+the ledger; full artifact validation happens on resume or through `read_compact`.
+
+The version-1 JSON specification has `schema_version`, `name`, `days`, `burn_in`,
+and `cells`. Each cell has a unique `name`, an existing `scenario`, an explicit
+`seeds` list, and optional `overrides` for any Scenario field except its name/title.
+Unknown fields are rejected. For example:
+
+```json
+{
+  "schema_version": 1,
+  "name": "closing-noise-pilot",
+  "days": 250,
+  "burn_in": 50,
+  "cells": [
+    {"name": "reference", "scenario": "baseline", "seeds": [100, 101]},
+    {"name": "zero-close-noise", "scenario": "baseline", "seeds": [100, 101],
+     "overrides": {"closing_noise_scale": 0}}
+  ]
+}
+```
+
+Shared resolved scenarios, seeds, durations, and burn-in settings are deduplicated
+across cells. Cell labels and worker counts do not determine run identity. Exact
+execution source hashes, Python/platform information, and the installed runtime
+dependency closure do. Resume rejects a changed execution fingerprint; unrelated
+untracked documents and Git status changes alone do not invalidate results. Do not
+edit execution sources or change dependencies during an experiment. Git revision,
+dirty status, effective model configuration, and pre/post simulation RNG states
+are recorded. Source hashes identify dirty source but do not archive it. Equal
+seed integers across variants do not guarantee aligned later random shocks.
+
+The Python interfaces use absolute imports:
+
+```python
+from src.experiments import Limits, execute_experiment, expand_spec, read_compact
+
+# Blocks until its bounded coordinator exits: launch long calls in the background.
+code = execute_experiment("results/pilot", spec="experiments/specs/baseline_pilot.json",
+                          limits=Limits(workers=2), log_path="results/pilot-console.log")
+# spec=None resumes; retry_failed=True explicitly retries failed/corrupt runs.
+metadata, arrays, summary = read_compact("results/pilot/runs/<run_id>")
+```
+
+### Compact artifact format
+
+Experiment manifests and compact run artifacts have their own version-1 schemas;
+they are separate from schema-1 replay bundles and cannot be passed to
+`replay_bundle`. The original bundle interface and strict replay checks remain.
+
+| Location | Contents |
+| --- | --- |
+| `manifest.json`, `manifest.sha256.json` | Immutable input, resolved runs/cell membership, provenance and integrity hash |
+| `ledger.sqlite` | Run states, attempts, invocation budgets, benchmark identity, errors, timings and peak RSS |
+| `invocations/*.jsonl` | Bounded progress logs; console output also reports each transition |
+| `runs/<run_id>/daily.npz` | Compressed numeric daily arrays; no pickle/object arrays |
+| `runs/<run_id>/metadata.json`, `summary.json` | Effective settings, RNG states, array schema/units, summary definitions and results |
+| `runs/<run_id>/logs/` | Complete compressed warm-up/trading summaries, strategy summaries, and events when present |
+| `runs/<run_id>/complete.json` | File sizes and SHA-256 hashes, written after all run artifacts |
+| `staging/<run_id>/` | Unpublished work and temporary logs; cleaned before retry |
+
+Arrays include day, price, previous price, dividend, natural-log return, volume,
+trade count, halt/skip flags, and bid/ask order counts after matching and before
+expiry. Strategy arrays have columns noise/chartist/fundamentalist and retain
+active counts, active-group cash, shares and wealth, and buy/sell volume. These
+preserve existing active-trader accounting; they are not cohort performance or
+liquidation values. Event trader IDs remain run-local indices without retained
+individual snapshots. Detailed decisions and trader wealth histories are omitted.
+
+All trading days remain in the arrays. Summaries select `[burn_in, days)`, and
+day-zero returns use the actual price immediately before trading. Volatility is
+the daily log-return sample standard deviation (`ddof=1`), without annualization.
+Maximum drawdown is the nonnegative fractional loss from the running price peak,
+including the price immediately before the selected window. Stalls are consecutive
+zero-volume days, including halts; both longest and terminal streaks are reported.
+Undefined summaries use JSON null with a reason. Raw daily values are never
+jittered, stitched, or filtered to remove no-trade days.
+
+### Resource limits and recovery
+
+Defaults are two workers, one native numerical thread each, 120 minutes per
+invocation, 6 GiB memory, 5 GiB experiment output, and a 10 GiB free-disk floor.
+CLI flags are `--workers`, `--minutes`, `--memory-gib`, `--output-gib`, and
+`--min-free-gib`. Workers must be 1–6; memory/output can only be lowered and the
+free-disk floor can only be raised. Each invocation benchmarks its first pending
+run serially and retains that result before admitting concurrent work.
+
+Linux address-space limits reserve 768 MiB for the coordinator and 256 MiB for
+probes; the remaining memory is divided among the configured workers, even during
+the serial benchmark. Imports count against these conservative virtual-memory
+limits. A run that cannot fit fails rather than falling back to an unbounded mode;
+using fewer workers increases each worker's allowance. The supervisor also checks
+RSS and stops when system `MemAvailable` falls below 1 GiB.
+
+Output reservations count temporary files as well as published artifacts. Each
+worker reserves at most 512 MiB, divided over 16 bounded file slots enforced by
+`RLIMIT_FSIZE`; this intentionally can reject an unusually large individual file
+before exhausting the aggregate quota. The fixed worker layout uses at most 14
+files simultaneously. A 64 MiB coordinator reserve covers the bounded SQLite
+database/journal, manifest, and invocation log. The resolved manifest is limited
+to 4 MiB of canonical JSON; split larger specifications into smaller batches.
+Invocation logs retain at most 64 KiB each; full progress is also written to the
+caller-selected console log, which is outside the runner's managed quota.
+
+The runner reserves disk headroom before dispatch and monitors free space during
+execution; unrelated processes can still consume disk between checks. It stops
+dispatching near the wall-time deadline using measured run duration, terminates
+unfinished workers at the deadline, and leaves completed artifacts intact. A new
+resume invocation gets a fresh time budget. SIGINT/SIGTERM leave recoverable
+state, and Linux parent-death signals kill workers if the coordinator is killed.
+Runs publish by same-filesystem rename only after validation and file syncing;
+resume recovers publication that preceded a ledger update. Startup failure before
+the immutable manifest is fully written requires a new destination.
+
+Use one-run readers or streaming aggregation for ensembles. The runner itself
+never loads logs or ensemble tables into pandas. The simulation still retains its
+existing in-memory trader histories; the memory cap bounds them but does not
+change that model behavior.
 
 ## How the model works
 

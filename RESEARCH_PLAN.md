@@ -18,7 +18,7 @@ PR focused on that task's changes. Use merge commits to retain the task history.
 | Task | Branch | Deliverable | Status |
 | --- | --- | --- | --- |
 | 1 | `feat/research-parameter-controls` | Python/CLI controls, compatibility checks, logging and bundle replay | Merged via [PR #4](https://github.com/Roman223/Agent_modelling/pull/4) |
-| 2 | `feat/research-experiment-runner` | Resumable experiments, compact artifacts, provenance and resource limits | Pending |
+| 2 | `feat/research-experiment-runner` | Resumable experiments, compact artifacts, provenance and resource limits | Implemented and validated; awaiting review/merge |
 | 3 | `feat/research-parameter-atlas` | One-dimensional sweeps and coarse two-dimensional parameter maps | Pending |
 | 4 | `feat/research-hard-reduction` | Hard-rule deterministic reduction and comparisons with controlled ABM runs | Pending |
 | 5 | `feat/research-smooth-reduction` | Regularized companion and sensitivity to smoothing | Pending |
@@ -90,3 +90,13 @@ The [validation record](VALIDATION.md#research-parameter-controls-task-1-2026-10
 lists changed files, commands, results, and limitations. All 39 focused checks and
 25 default legacy-regression cases passed. Task 1 did not launch a new research
 sweep or implement any later task.
+
+## Task 2 handoff
+
+The runner, compact artifact format, resource controls, and CLI/Python interfaces
+are documented in the [README](README.md#resumable-research-experiments).
+The [validation record](VALIDATION.md#research-experiment-runner-task-2-2026-10-27)
+records 57 passing focused checks, 25 passing default legacy cases, and the
+three-seed baseline pilot with verified interruption/resume. Task 2 does not add
+parameter sweeps or implement tasks 3–7. Its branch starts at `8fe91d6`; merge it
+before creating the task 3 branch from the updated integration branch.

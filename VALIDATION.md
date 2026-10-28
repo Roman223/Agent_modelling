@@ -9,6 +9,12 @@ they are separately fingerprinted in the final report. The original simulation,
 trader, asset, matching, scenario, metric, bundle, and experiment-runner sources
 were not edited. Existing untracked research files were left untouched.
 
+Validated task head `dab21ed` merged on 2026-10-28 through
+[PR #7](https://github.com/Roman223/Agent_modelling/pull/7) as `d3f3a60` into
+`research/emergent-dynamics`. The merged tree was verified identical to the
+validated task head before this documentation update. Integration PR #3 remains
+draft for the final combined review after tasks 1–7.
+
 The implementation adds a pure deterministic day-order map and a persistent
 queue companion, preserving strategy cash/shares and accepted-price memory.
 Noise participation is integrated by branch; conditional quote distributions

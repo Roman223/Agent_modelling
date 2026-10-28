@@ -20,7 +20,7 @@ PR focused on that task's changes. Use merge commits to retain the task history.
 | 1 | `feat/research-parameter-controls` | Python/CLI controls, compatibility checks, logging and bundle replay | Merged via [PR #4](https://github.com/Roman223/Agent_modelling/pull/4) |
 | 2 | `feat/research-experiment-runner` | Resumable experiments, compact artifacts, provenance and resource limits | Merged via [PR #5](https://github.com/Roman223/Agent_modelling/pull/5) |
 | 3 | `feat/research-parameter-atlas` | One-dimensional sweeps and coarse two-dimensional parameter maps | Merged via [PR #6](https://github.com/Roman223/Agent_modelling/pull/6) |
-| 4 | `feat/research-hard-reduction` | Hard-rule deterministic reduction and comparisons with controlled ABM runs | Implementation and pilot complete; integration pending |
+| 4 | `feat/research-hard-reduction` | Hard-rule deterministic reduction and comparisons with controlled ABM runs | Merged via [PR #7](https://github.com/Roman223/Agent_modelling/pull/7) |
 | 5 | `feat/research-smooth-reduction` | Regularized companion and sensitivity to smoothing | Pending |
 | 6 | `feat/research-bifurcation-analysis` | Continuation, stability/Lyapunov checks, known-answer tests and pilot results | Pending |
 | 7 | `feat/research-multifractal-analysis` | MF-DFA, surrogate/GARCH controls, validation and pilot results | Pending |
@@ -151,6 +151,9 @@ The task 4 handoff below records the next implementation. Tasks 5–7 remain uni
 ## Task 4 handoff
 
 Simulation execution commit: `a1e3f3d`, based on integration commit `60b765d`.
+Validated task head: `dab21ed`; merged on 2026-10-28 through
+[PR #7](https://github.com/Roman223/Agent_modelling/pull/7) as `d3f3a60`.
+The merged tree was identical to the validated task head before this handoff update.
 The implementation supplies a deterministic day-order map and a persistent-order
 queue companion. Both retain strategy cash/shares and accepted-price memory.
 Conditional quotes use NumPy quadrature; pooled resources, fractional quantities,
@@ -180,4 +183,4 @@ without claiming that regularization establishes an ABM mechanism. Further
 closure validation is needed before interpreting reduced attractors as ABM
 explanations. Keep the persistent companion outside fixed-size continuation;
 the day map has two conserved-resource constraints. Create task 5 from the
-updated integration branch after task 4 merges, including its final handoff.
+updated integration branch, including the PR #7 merge and this final handoff.

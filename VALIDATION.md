@@ -1,5 +1,147 @@
 # Engineering improvements: validation record
 
+## Hard-rule deterministic reduction: task 4 (2026-10-27)
+
+Implemented on `feat/research-hard-reduction`, branched from integration commit
+`60b765d` after task 3. Simulation execution source is `a1e3f3d`. Subsequent
+plotting-only changes use logarithmic price axes and nonnegative activity axes;
+they are separately fingerprinted in the final report. The original simulation,
+trader, asset, matching, scenario, metric, bundle, and experiment-runner sources
+were not edited. Existing untracked research files were left untouched.
+
+The implementation adds a pure deterministic day-order map and a persistent
+queue companion, preserving strategy cash/shares and accepted-price memory.
+Noise participation is integrated by branch; conditional quote distributions
+use 16-point Gauss–Legendre quadrature, checked at 8 and 32 points. Hard decisions
+are evaluated before weighting. Portfolio pooling, fractional flows, and
+matching the weighted order measure are explicit closure assumptions, not an
+exact expected ABM transition. Equations, APIs, limitations, and reproduction
+commands are in the [README](README.md#hard-rule-deterministic-reduction-task-4).
+
+Mesa and PyDSTool were assessed; the model-specific closure is implemented with
+the existing NumPy stack, while existing process limits, artifact utilities,
+and the ABM runner are reused. No dependency was added. References:
+[Mesa activation](https://mesa.readthedocs.io/latest/tutorials/2_agent_activation.html),
+[PyDSTool hybrid systems](https://pydstool.github.io/PyDSTool/HybridSystems.html), and
+[NumPy quadrature](https://numpy.org/doc/stable/reference/generated/numpy.polynomial.legendre.leggauss.html).
+
+### Validation
+
+| Command | Result |
+| --- | --- |
+| `.venv/bin/python tests/test_reduction.py` | 16/16 passed |
+| `.venv/bin/python tests/test_core.py` | 19/19 passed |
+| `.venv/bin/python tests/test_logging.py` | 11/11 passed |
+| `.venv/bin/python tests/test_bundles.py` | 9/9 passed |
+| `.venv/bin/python tests/test_experiments.py` | 18/18 passed |
+| `.venv/bin/python tests/test_atlas.py` | 10/10 passed |
+| `.venv/bin/python tests/test_legacy_equivalence.py` | 25/25 identical to notebook `84fa2a6` |
+| `.venv/bin/python tests/test_reduction.py StudyTests.test_cli_interrupt_resume_and_published_reuse` | Passed again after the plotting-axis adjustment |
+
+All 83 focused checks passed. Rule comparisons cover prescribed random draws,
+resource boundaries, minimum quantities, the chartist sell fallback, and
+fundamentalist allocation. Other checks cover price/time priority, partial
+fills, conservation, within-strategy execution, pre-expiry diagnostics, exact
+zero versus fractional volume, unchanged-price memory updates, no-trade memory
+freezing, deterministic repetition, RNG preservation, and immutable inputs.
+The workflow test verifies time-limit interruption/resume, serial versus worker
+results, reuse of published artifacts, recovery of interrupted staging,
+corruption rejection and explicit retry, provenance rejection, and rendering.
+
+Tests ran in managed background sessions with logs under
+`results/task4_development/` and one native numerical thread per process. The
+default legacy suite completed in 106.8 seconds. The six figures were visually
+inspected; final report payloads and the selected committed PNG copies were
+checksum-verified. Price plots use log axes so that order-of-magnitude gaps are
+visible. Activity plots retain zero and do not show negative volume ranges.
+
+### Pilot execution
+
+Study: `results/task4_reduction_20261027`. Stored Task 3 grid coordinates select
+the reference `(4, 3)` with all eight variants, plus `(6, 0)` variants 6/7 for
+the liquidity contrast. The latter retains alpha `0.19999999999999998` rather
+than substituting a rounded parameter. Each run spans 2,000 trading days; metrics
+use the final 1,000, while path figures include the preceding trajectory.
+
+- Reused 50 validated historical ABMs, seeds 100–104.
+- Completed 50 fresh ABMs, seeds 110–114, in 66.25 seconds.
+- Completed 120 reductions: four parameter/lifetime configurations, ten recorded
+  initial histories, and three quadrature resolutions, in 116.01 seconds.
+- Both phases used a serial benchmark before expanding to two workers. The ABM
+  benchmark took 3.35 seconds; the persistent reduction benchmark took 1.74 seconds.
+  Maximum worker RSS was 86.8 MiB for ABMs and 82.6 MiB for reductions.
+- All 170 new runs completed on their first attempt, with no failed or missing
+  runs. Configured limits were 6 GiB combined memory, 5 GiB output, 10 GiB minimum
+  free disk, and a 120-minute batch. The study uses 54.43 MiB including the first
+  and final rendering; free disk remained about 36 GiB.
+
+Final report identity:
+`5956ebce49d071eb5bc224f590911a12ff1ccdecb4bc1c63c06b2e690e0ce29e`.
+It contains 220 per-run records, cohort-separated summaries and numeric tables,
+and six figures in PNG/PDF. All 15 report payload hashes were verified. Two
+representative PNGs, 470,618 bytes combined, are retained in Git; raw study data
+remain gitignored. The source and completion hashes of every comparison input
+are recorded. Resume historical execution at `a1e3f3d`; the current renderer
+accepts those completed artifacts without changing their execution identity.
+
+### Findings and task 5 handoff
+
+The pooled closure fails the intended ABM fidelity comparison. This is a
+scientific limitation of the tested approximation, not an execution failure.
+The table uses fresh seeds 110–114 and the primary 16-point reduction. Each
+reduction count refers to five initial histories, not five stochastic trajectories.
+Stalls mean at least 100 terminal exact no-trade days; volume entries are medians
+of per-run mean daily volume in the retained window.
+
+| Coordinate / orders | ABM stalls | Reduction stalls | ABM volume | Reduction volume |
+| --- | ---: | ---: | ---: | ---: |
+| Reference / persistent | 4/5 | 1/5 | 0 | 1,787.75 |
+| Reference / day | 0/5 | 0/5 | 3.582 | 2,799.77 |
+| Liquidity / persistent | 5/5 | 1/5 | 0 | 2,779.79 |
+| Liquidity / day | 0/5 | 0/5 | 3.304 | 2,779.80 |
+
+The fresh ABMs reproduce the selected liquidity stall contrast, but the reduction
+substantially underrepresents persistent-order stalls and day-order intermittency.
+Median no-trade fractions for fresh day-order ABMs are 18.9% at the reference and
+27.7% at the liquidity anchor, versus zero in both reductions. In each primary
+reduction cell, the median within-strategy fraction of positive executed volume
+is approximately 100%. Thus continued volume can be internal circulation in a
+pooled strategy without comparable inter-strategy resource exchange. This does
+not establish the same decomposition for the ABM, whose compact summaries lack
+counterparty-level information.
+
+Price behavior also differs materially. Fresh day-order median final prices are
+105,953.86 at the reference and 23,505.95 at the liquidity anchor, versus 46.01
+and 46.27 in the reduction. The initial declining transient can look similar
+while later resource redistribution, activity, and prices diverge. Zero window
+drawdown in an already stalled ABM omits the earlier decline; it is not evidence
+of market stability.
+
+The historical reference persistent ABM stalled in 1/5 cases versus 4/5 on fresh
+seeds. These small cohorts are reported separately. The selected liquidity
+persistent ABM stalled in 5/5 in each cohort; both day-order cohorts had 0/5
+terminal stalls. These are exploratory findings, not precise stall probabilities.
+
+Quadrature resolution changes deterministic classifications: fresh persistent
+reference stall counts are 0/5, 1/5, 0/5 at 8/16/32 points; liquidity counts are
+1/5, 1/5, 0/5. Day-order reductions have no terminal stalls at these resolutions.
+All four cells have median sub-share-day fractions of zero, but individual runs
+and exact fractional flows remain available in the artifacts. There is no
+claim of pathwise convergence, validated attraction, or deterministic chaos.
+
+Task 5 should preserve this explicit hard-rule baseline, its resource constraints,
+accepted-price clock, and the recorded closure failures when assessing smoothing.
+Smoothing sensitivity alone cannot repair or validate the discarded portfolio
+dispersion and matching dependence. Any later claim that reduced attractors
+explain ABM liquidity requires further closure validation. The queue-retaining
+companion is not a fixed-size continuation target; use the day map on its
+conserved-resource surface for any subsequent regularized-map work. No smoothing,
+continuation, Lyapunov calculation, or multifractal analysis was added here.
+
+![Fresh-cohort trading continuity](experiments/figures/task4_20261027/continuity.png)
+
+![Liquidity-anchor price and volume paths](experiments/figures/task4_20261027/liquidity_paths.png)
+
 ## Research parameter atlas: task 3 (2026-10-27)
 
 Implementation commit: `a480c8d` on `feat/research-parameter-atlas`, branched from

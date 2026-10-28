@@ -156,6 +156,133 @@ anchors. Representative [volatility](experiments/figures/task3_20261027/log_retu
 and [terminal-stall](experiments/figures/task3_20261027/terminal_stall_map.png) maps
 are retained in Git; the full 24-figure set and compact data remain under `results/`.
 
+## Hard-rule deterministic reduction (task 4)
+
+The reduction is an explicit research variant, separate from the unchanged
+stochastic ABM. `src.reduction` exposes `ReductionConfig`, `ReductionState`,
+`initial_state`, `step_hard(state, config)`, and `simulate_reduction`. A step
+returns a new state and pre-expiry diagnostics without consuming randomness or
+modifying its input. `simulate_reduction` returns an independent result with
+daily numeric arrays and initial/final states. Seeds identify recorded initial
+histories; they do not drive the deterministic dynamics.
+
+The default state has six strategy-resource coordinates (cash and shares for
+noise/chartist/fundamentalist groups) and 20 accepted-price observations. Price is
+the final observation. The day-order map has an empty book at each day boundary;
+the persistent companion additionally retains every outstanding price-priority,
+FIFO-tie order parcel and its strategy owner. The full persistent state can grow
+even with constant prices. A bounded price trace does not establish a bounded
+attractor. Future continuation of the day map must restrict the six resource
+coordinates to their two conserved-total constraints.
+
+Both maps use constant dividends `0.016`, zero closing noise, fixed population,
+and no circuit breaker or evolution. Dividends and the risk-free rate enter the
+fundamentalist signal only; they do not pay cash into the system. The initial
+strategy resources are `[5000000, 3000000, 30000000]` cash and
+`[50000, 20000, 15000]` shares. Total cash `38000000` and shares `85000` are
+conserved, subject to floating-point tolerance.
+
+### Closure and equations
+
+For strategy `s`, decisions use per-agent means `c_s = C_s/N_s` and
+`a_s = A_s/N_s`. A conditional legacy order at quote draw `u_k` contributes
+`N_s * pi_branch * w_k * quantity(c_s, a_s, history, u_k)` shares at its original
+limit price. Noise buy/sell probabilities are each `0.4`; the remaining `0.2`
+holds. Chartists follow the original SMA branch and sell fallback. Fundamentalists
+use `P/P_previous - 1 + 0.016/P_previous - 0.0003`, the strict absolute `0.05`
+activation threshold, and allocation clipped to `[0.1, 0.9]`.
+
+Uniform quote draws are replaced with Gauss–Legendre nodes and weights mapped
+to `[0, 1]`: 16 points by default, with 8/32-point sensitivity runs. The original
+integer decisions, minimum-one quantities, holdings limits, and affordability
+conditions are applied **before** weighting. Fundamentalists need only one
+deterministic quote. Absent strategies submit nothing.
+
+Orders are submitted in noise/chartist/fundamentalist order, noise buys before
+sells, then ascending node order. Matching retains best-price priority, stable
+arrival ties, midpoint execution, and bid-price integer cash clipping on the
+group resource pools. Quantities and fills can be fractional after weighting.
+Within-strategy fills count toward volume and VWAP but have zero net resource
+transfer. The closing price is `max(VWAP, 0.01)`. Its observation is appended only
+when volume is positive, even if the closing price is unchanged. No-trade days
+freeze the entire accepted-price memory. Day expiry occurs after diagnostics.
+
+This is a pooled-portfolio, weighted-order closure. It discards within-strategy
+resource dispersion and allows old orders to draw on group resources. Matching
+weighted orders is not the expected matched transition of the stochastic ABM.
+Fractional inventories can sustain positive flows below one share and advance
+the signal clock after discrete agents would stop. The report therefore keeps
+exact zero-volume stalls and `0 < volume < 1` days separate, without epsilon
+cutoffs or forced rounding. Quadrature convergence does not establish ABM
+fidelity; order-parcel counts also depend on quadrature resolution.
+
+[Mesa's activation facilities](https://mesa.readthedocs.io/latest/tutorials/2_agent_activation.html)
+and [PyDSTool's hybrid-system facilities](https://pydstool.github.io/PyDSTool/HybridSystems.html)
+were assessed. The model-specific closure is implemented directly; existing
+[NumPy quadrature](https://numpy.org/doc/stable/reference/generated/numpy.polynomial.legendre.leggauss.html),
+artifact utilities, and bounded process infrastructure are reused. No dependency
+was added. There is no smoothing, stability calculation, or chaos classification
+in this task.
+
+### Comparison workflow
+
+```bash
+.venv/bin/python experiments/run_reduction.py generate results/task4_reduction_20261027 \
+  --atlas results/task3_atlas_20261027
+.venv/bin/python experiments/run_reduction.py run results/task4_reduction_20261027 \
+  --workers 2 --minutes 120 > results/task4_reduction_20261027/execution.log 2>&1
+.venv/bin/python experiments/run_reduction.py status results/task4_reduction_20261027
+.venv/bin/python experiments/run_reduction.py resume results/task4_reduction_20261027 \
+  --workers 2 --minutes 120 >> results/task4_reduction_20261027/execution.log 2>&1
+.venv/bin/python experiments/run_reduction.py render results/task4_reduction_20261027
+.venv/bin/python tests/test_reduction.py
+```
+
+Launch long execution/validation commands in a background terminal session.
+Generation selects Task 3's stored grid `(4, 3)` reference and all eight variants,
+plus grid `(6, 0)` variants 6/7 for the exploratory liquidity contrast. It retains
+the exact stored alpha value rather than retyping `0.2`. The default pilot reuses
+50 historical ABMs (seeds 100–104), runs 50 fresh ABMs (110–114), and evaluates
+four reduction configurations under ten recorded warm-up histories and three
+quote resolutions: 120 deterministic runs. All runs have 2,000 trading days;
+summary metrics use `[1000, 2000)`, while path figures show the full run.
+
+Zero-noise, constant-dividend cases are the primary fidelity comparisons. Other
+reference controls quantify differences when forcing is removed. Historical and
+fresh cohorts remain separate. Quartile bands describe dispersion across seeds
+or initial histories, not confidence intervals. Fresh five-seed results are still
+exploratory. Equal seeds do not guarantee aligned later ABM shocks.
+
+The driver runs the existing ABM coordinator first, then isolated reduction
+workers. Each phase benchmarks one run before enabling two workers by default.
+Native numerical threads are capped at one; never exceed six workers. Combined
+process budgets stay within 6 GiB, output within 5 GiB, and free disk above 10 GiB.
+The default batch lasts at most 120 minutes. Exit code 2 indicates interrupted,
+limited, or incomplete work; inspect status and logs before resuming. Failed
+reduction artifacts require `resume --retry-failed`. Corrupt scientific inputs
+are rejected; restore their original recorded files or create a new study.
+
+Completed reductions are atomically published under `reduction/runs/` and tracked
+in SQLite. Interrupted individual runs restart from their recorded initial state;
+validated completed runs are retained. A separately versioned format contains
+`daily.npz`, metadata, a compressed final state including the persistent queue,
+summary statistics, and a checksum manifest. Read numeric archives with
+`allow_pickle=False`; `read_reduction` validates identity, layout, chronology,
+conservation, and summaries. Existing schema-1 bundles and compact ABM formats
+are unchanged. Execution source/runtime fingerprints gate resume, while historical
+input artifacts can be read under newer code. Freeze execution sources before a
+study; changing any `src` file changes its identity.
+
+Rendering requires complete, valid inputs. It writes per-run compressed JSON,
+numeric tables, per-group coverage and quartiles, and six figures in PNG/PDF:
+reference prices, liquidity paths, two resource-allocation panels, trading
+continuity, and quadrature sensitivity. Price axes are logarithmic; activity axes
+retain zero. Report identity includes source/runtime and every input completion
+hash. The [completed pilot and validation record](VALIDATION.md#hard-rule-deterministic-reduction-task-4-2026-10-27)
+documents a material closure failure: fresh liquidity-anchor ABMs stall in 5/5
+persistent-order runs, versus 1/5 primary reductions, with large volume and price
+gaps. Read these findings before interpreting the reduced dynamics.
+
 ## Scenarios
 
 | Scenario | Noise | Chartists | Fundamentalists | Variation |
@@ -242,8 +369,8 @@ checks as default runs. Older bundles still require their recorded source and
 runtime; this change does not bypass provenance checks.
 
 These controls complete task 1 of the research plan. The task 2 experiment runner
-is described below. Parameter sweeps, deterministic reductions, bifurcation
-analysis, and multifractal analysis remain pending (tasks 3–7).
+is described below; the task 3 atlas and task 4 hard reduction are described above.
+Smoothing, bifurcation analysis, and multifractal analysis remain later tasks.
 The branch and PR merge sequence is tracked in [RESEARCH_PLAN.md](RESEARCH_PLAN.md).
 
 ## Resumable research experiments

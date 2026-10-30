@@ -3,9 +3,12 @@
 Integration branch: `research/emergent-dynamics`.
 Integration PR: [#3](https://github.com/Roman223/Agent_modelling/pull/3).
 Final target: `main`, through a draft integration PR that remains open until the
-selected research plan is complete. The scope is research phases 1, 2, 3, and 5:
-parameter discovery, deterministic reductions, bifurcation verification, and
-multifractal analysis. Basin/boundary geometry (research phase 4) is deferred.
+selected research plan is complete. The scope covers parameter discovery,
+ABM reduction fidelity, data-driven structure discovery, and multifractal
+analysis. Deterministic bifurcation verification is conditional on finding a
+suitable, validated model. Basin/boundary geometry (research phase 4) is deferred.
+The approved 2026-10-30 revision replaces task 5's smoothing study with a study
+of retained individual differences; see the revised scope below.
 
 ## Sequential PRs
 
@@ -21,8 +24,8 @@ PR focused on that task's changes. Use merge commits to retain the task history.
 | 2 | `feat/research-experiment-runner` | Resumable experiments, compact artifacts, provenance and resource limits | Merged via [PR #5](https://github.com/Roman223/Agent_modelling/pull/5) |
 | 3 | `feat/research-parameter-atlas` | One-dimensional sweeps and coarse two-dimensional parameter maps | Merged via [PR #6](https://github.com/Roman223/Agent_modelling/pull/6) |
 | 4 | `feat/research-hard-reduction` | Hard-rule deterministic reduction and comparisons with controlled ABM runs | Merged via [PR #7](https://github.com/Roman223/Agent_modelling/pull/7) |
-| 5 | `feat/research-smooth-reduction` | Regularized companion and sensitivity to smoothing | Pending |
-| 6 | `feat/research-bifurcation-analysis` | Continuation, stability/Lyapunov checks, known-answer tests and pilot results | Pending |
+| 5 | `feat/research-heterogeneity-study` | Representative portfolios, minimum retained individuality for ABM fidelity, and data-driven structure discovery | Pending; scope revised 2026-10-30 |
+| 6 | `feat/research-bifurcation-analysis` | Reassess the appropriate dynamics analysis after task 5; deterministic continuation/stability only if justified | Deferred pending task 5 findings |
 | 7 | `feat/research-multifractal-analysis` | MF-DFA, surrogate/GARCH controls, validation and pilot results | Pending |
 
 Future PRs are opened when their changes are available; pending rows do not imply
@@ -73,13 +76,17 @@ and merge it into `main` only after the required checks and that final validatio
   evolution and the breaker disabled. Scan alpha at 17 geometric values from
   0.025 to 0.4 with gamma 2, plus a 9-by-7 alpha/gamma grid with gamma from 0.5 to 8.
   Use seeds 100–104 and 2,000 days, analyzing the last 1,000; deduplicate shared runs.
-- For tasks 4–5, retain strategy cash/shares and the accepted-price memory in an
-  ABM-derived aggregate reduction. Compare hard rules with a smooth companion;
-  assess smoothing scales 0.01, 0.003, and 0.001. Validate the reduction against
-  explicit ABM controls before interpreting its attractors.
-- For task 6, use discrete-map stability multipliers of `DF`, continuation, periods
-  2/4/8, and converged tangent Lyapunov estimates. Validate against known systems;
-  distinguish verified bifurcations, candidates, and nonsmooth transitions.
+- Preserve task 4's hard-rule reductions and their recorded fidelity failures as
+  comparison baselines. Task 5 now varies the retained portfolio detail and
+  discovers structure from simulations; it does not derive governing market
+  equations or smooth the existing pooled reduction. Its first target is the
+  full individual-trader ABM, not historical market-index data.
+- Reassess task 6 after task 5 establishes what representation and dynamics are
+  supported. If a suitable deterministic map is validated, its analysis requires
+  discrete-map multipliers of `DF`, continuation, periods 2/4/8, converged tangent
+  Lyapunov estimates, and known-answer tests. A stochastic or predictive model
+  does not automatically justify that workflow. Smoothing scales 0.01, 0.003,
+  and 0.001 belong to the deferred proposal, not the revised task 5 pilot.
 - For task 7, use selected anchors and seeds 200–202, with 10,240-day runs, discard
   2,048 days, and retain 8,192. Compare nested lengths and chronological index
   returns using MF-DFA plus shuffled, IAAFT, and Student-t GARCH controls. Treat
@@ -178,9 +185,95 @@ predominantly within-strategy circulation, and prices/resource redistribution
 also diverge. Stall classifications change with quote resolution. These failures
 are retained as results, not tuned away or treated as verified dynamics.
 
-Task 5 should preserve this hard-rule comparison and investigate smoothing
-without claiming that regularization establishes an ABM mechanism. Further
-closure validation is needed before interpreting reduced attractors as ABM
-explanations. Keep the persistent companion outside fixed-size continuation;
-the day map has two conserved-resource constraints. Create task 5 from the
-updated integration branch, including the PR #7 merge and this final handoff.
+The original handoff proposed a smoothing study. The approved revision below
+supersedes that next step while preserving these results. Further closure
+validation is needed before interpreting reduced attractors as ABM explanations.
+Keep the persistent companion outside fixed-size continuation; the day map has
+two conserved-resource constraints. Create the revised task 5 branch from the
+updated integration branch, including the PR #7 merge and this scope revision.
+
+## Revised task 5: retained individuality and structure discovery (2026-10-30)
+
+The user approved studying representative portfolios and discovering structure
+from simulation data, with the full original ABM as the first comparison target.
+Do not write direct governing market equations. This replaces the original
+regularized-companion task; it is a research scope revision, not an implemented
+model or a completed experiment. Task 4 passed implementation checks, but its
+scientific fidelity and the combined project remain subject to user review.
+
+### Research question and controlled comparison
+
+Find how much individual portfolio variation must be retained before a simpler
+representation reproduces the full ABM's behavior. A threshold may depend on
+the regime or observable, and there may be no useful compression before full
+individual detail is required. Do not assume a sharp or monotone transition.
+
+- Explore 1, 2, 4, 8, and 16 representative portfolios per strategy, capped by
+  that strategy's population, plus a full individual-detail endpoint. Keep the
+  represented population, initial total cash/shares, strategy parameters, and
+  price memory fixed. This varies representation detail, not population size
+  or the strength of newly invented behavioral differences.
+- Traders within a strategy start with identical portfolios in the current ABM;
+  differences emerge through trading. Retain that emergence rather than merely
+  duplicating identical deterministic pools. Preserve the joint distribution of
+  cash and shares; equal wealth does not imply equal ability to buy or sell.
+- Keep order lifetime and random forcing as explicitly matched controls, using
+  the existing reference and liquidity anchors initially. The named original
+  stochastic ABM remains the reference, with zero-noise/constant-dividend controls
+  separately labeled. Preserve the accepted-price clock: no-trade days freeze
+  its memory, so 20 price observations need not mean 20 calendar days.
+- Define and validate grouping, portfolio updates, resource conservation, and
+  order ownership before running the hierarchy. The full-detail endpoint must
+  reproduce the individual-trader ABM, including its seeded behavior. Increasing
+  the number of deterministic weighted pools alone does not guarantee that
+  endpoint. Task 4 remains a separate baseline, not an assumed equivalent of
+  the new one-profile setting.
+
+### Measures, threshold assessment, and discovery
+
+- Report the number of profiles alongside retained within-strategy portfolio
+  dispersion and normalized joint cash/share distribution error. Specify the
+  normalization and zero-dispersion handling explicitly; a profile count alone
+  is not a universal measure of individuality.
+- Compare ensemble distributions of trading stalls, no-trade fractions, volume,
+  returns, and strategy resource allocation. Retain exact-zero and sub-share
+  activity separately. Use full-ABM versus full-ABM ensemble differences to
+  characterize sampling variability, not to claim equivalence from a failed
+  significance test or visually similar price traces.
+- Freeze quantitative similarity tolerances and primary outcomes before held-out
+  validation. Identify the smallest tested representation that meets those
+  tolerances on separate runs and remains acceptable at finer resolutions.
+  Report uncertainty, per-regime differences, and unresolved cases; do not
+  force a single threshold when different outcomes require different detail.
+- Discover compact structure using portfolio distributions, resource availability,
+  trading activity, order-book summaries, and price history. Start with clustering
+  and dimensionality reduction; compare representations with and without lagged
+  observations. Fit scaling and representations on development runs only and
+  evaluate on independent runs. Predictive structure does not by itself establish
+  a closed deterministic model, a causal explanation, or chaos.
+- Existing compact atlas artifacts omit individual portfolio snapshots. Collect
+  bounded, reproducible observations where needed rather than infer individual
+  variation from group totals. Keep simulation and analysis seeds separate, and
+  retain source/configuration provenance and the existing resource limits.
+
+### Reuse, deliverables, and next-task decision
+
+Reuse the existing simulation/artifact infrastructure, NumPy, and
+[scikit-learn clustering](https://scikit-learn.org/stable/modules/clustering.html)
+and [PCA](https://scikit-learn.org/stable/modules/generated/sklearn.decomposition.PCA.html).
+Assess [SciPy distribution distances](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.wasserstein_distance_nd.html)
+for small portfolio distributions. [HARK](https://docs.econ-ark.org/docs/overview/ARKitecture.html)
+provides useful distribution-representation precedents, but replacing the market
+engine with that framework is not planned. Adapt established tools; implement
+only the model-specific grouping and validation needed here.
+
+Deliver a bounded, resumable pilot; plots of retained individuality versus ABM
+disagreement; threshold estimates or explicit non-convergence; and validated
+structure-discovery results. Preserve the hard-reduction failures in comparisons.
+No historical-index realism claim or hand-derived market equations are in scope.
+
+Use the findings to revise task 6's specification before implementing it. The
+previous smooth-map continuation route is not automatic; smoothing remains
+deferred unless the evidence supports a suitable model. Task 7's multifractal
+scope is unchanged and does not require a successful smooth reduction. Keep the
+integration PR draft and retain final user validation before merging into `main`.

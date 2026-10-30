@@ -1,9 +1,10 @@
 """Scenario definitions and shared parameters from the original notebook."""
 
-from dataclasses import dataclass
-from numbers import Integral
+from dataclasses import dataclass, field
+from math import isfinite
+from numbers import Integral, Real
 
-# Per-agent endowments and strategy parameters shared by every scenario (notebook cells 18-47).
+# Per-agent endowments and default strategy parameters (notebook cells 18-47).
 NOISE_CASH, NOISE_ASSETS = 100000, 1000
 CHARTIST_CASH, CHARTIST_ASSETS = 150000, 1000
 CHARTIST_ALPHA = 0.1
@@ -32,6 +33,20 @@ class Scenario:
     circuit_breaker_asset: bool = False  # Asset rejects >20% moves (notebook cell 42)
     halt_check: bool = False             # call asset.check_halt_status() and skip trading while halted
     evolution: bool = False              # every 100 days: 2 noise -> chartists, 1 chartist -> fundamentalist
+    chartist_alpha: float = field(default=CHARTIST_ALPHA, kw_only=True)
+    fundamentalist_gamma: float = field(default=FUNDAMENTALIST_GAMMA, kw_only=True)
+    closing_noise_scale: float = field(default=0.05, kw_only=True)
+    dividend_mode: str = field(default='stochastic', kw_only=True)
+    order_lifetime: str = field(default='persistent', kw_only=True)
+
+    def __post_init__(self):
+        self._validate_controls()
+        # NumPy scalars (especially float32) otherwise change arithmetic precision
+        # before export, while JSON replay reconstructs native Python numbers.
+        for name in ('chartist_alpha', 'fundamentalist_gamma', 'closing_noise_scale'):
+            value = getattr(self, name)
+            if type(value) not in (int, float):
+                object.__setattr__(self, name, float(value))
 
     def validate(self):
         """Validate public run inputs without rejecting legacy scenario switches."""
@@ -42,6 +57,28 @@ class Scenario:
                 raise ValueError(f'{name} must be an integer >= {minimum}')
         if self.noise + self.chartists + self.fundamentalists == 0:
             raise ValueError('scenario must contain at least one trader')
+        self._validate_controls()
+
+    def _validate_controls(self):
+        for name, bounds, valid_range in (
+            ('chartist_alpha', '0 < value <= 1', lambda value: 0 < value <= 1),
+            ('fundamentalist_gamma', 'value > 0', lambda value: value > 0),
+            ('closing_noise_scale', 'value >= 0', lambda value: value >= 0),
+        ):
+            value = getattr(self, name)
+            valid = not isinstance(value, bool) and isinstance(value, Real)
+            if valid:
+                try:
+                    valid = isfinite(value) and valid_range(value)
+                except OverflowError:
+                    valid = False
+            if not valid:
+                raise ValueError(f'{name} must be a finite real with {bounds}')
+        for name, choices in (('dividend_mode', ('stochastic', 'constant')),
+                              ('order_lifetime', ('persistent', 'day'))):
+            value = getattr(self, name)
+            if not isinstance(value, str) or value not in choices:
+                raise ValueError(f'{name} must be one of {choices}')
 
 
 SCENARIOS = {s.name: s for s in [

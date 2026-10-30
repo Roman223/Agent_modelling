@@ -1,5 +1,99 @@
 # Engineering improvements: validation record
 
+## Retained individuality and structure discovery: task 5 (2026-10-30)
+
+Implemented on `feat/research-heterogeneity-study`, branched from integration
+commit `abc1324` after the approved scope revision. Simulation execution source
+is `6db78d5`. The ordinary market loop is shared with the checkpoint interface;
+the existing simulation APIs, model rules, random-draw order, and schema-1 bundle
+layout are preserved. Existing untracked research files remain untouched.
+
+The experiment compresses individual portfolios once, after a specified number
+of completed trading days, and then resumes the original individual trading.
+It retains every trader, original order ownership and queue priority, price
+memory, and RNG state. This tests sensitivity to initial portfolio information;
+it does not supply a permanently compressed simulator or a speedup. No governing
+market equations or deterministic chaos claim are introduced.
+
+SciPy's Ward linkage and nested cuts supply the grouping. Its minimum-cost
+assignment supplies exact empirical joint Wasserstein-1 distances for equal
+uniform portfolio samples, avoiding a separate transport LP solver. Scaling,
+PCA, K-means, silhouette scores, and adjusted Rand scores reuse scikit-learn.
+HARK was assessed as a distribution-representation precedent; replacing the
+existing market engine would not preserve its trading and queue semantics.
+SciPy is now a direct dependency; the existing pinned version is unchanged.
+References: [SciPy Ward linkage](https://docs.scipy.org/doc/scipy/reference/generated/scipy.cluster.hierarchy.ward.html),
+[minimum-cost assignment](https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.linear_sum_assignment.html),
+[scikit-learn clustering](https://scikit-learn.org/stable/modules/clustering.html),
+and [HARK architecture](https://docs.econ-ark.org/docs/overview/ARKitecture.html).
+
+### Validation
+
+| Command | Result |
+| --- | --- |
+| `.venv/bin/python tests/test_heterogeneity.py` | 13/13 passed |
+| `.venv/bin/python tests/test_core.py` | 19/19 passed |
+| `.venv/bin/python tests/test_logging.py` | 11/11 passed |
+| `.venv/bin/python tests/test_bundles.py` | 9/9 passed |
+| `.venv/bin/python tests/test_experiments.py` | 18/18 passed |
+| `.venv/bin/python tests/test_atlas.py` | 10/10 passed |
+| `.venv/bin/python tests/test_reduction.py` | 16/16 passed |
+| `.venv/bin/python tests/test_legacy_equivalence.py` | 25/25 identical to notebook `84fa2a6` |
+| Python compilation, `pip check`, and `git diff --check` | Passed |
+
+All 96 focused checks passed. New checks cover checkpoint round trips and exact
+continuations under all eight forcing/order-lifetime controls; immutable inputs
+and caller RNG restoration; nested grouping; cash and integer-share conservation;
+empty and identical portfolios; unchanged order ownership; and exact full detail.
+Known-answer outcome fixtures exercise passing, failing, inconclusive, and
+nonmonotone threshold decisions. A stall at a short horizon cannot borrow
+no-trade days from before the checkpoint.
+
+The CLI workflow test interrupts and resumes a small study, reuses published
+artifacts, rejects corrupted outputs and changed provenance, explicitly retries
+damaged reference and continuation artifacts, and renders/reuses a report. A
+retried reference reproduces its original bytes and dependent artifact identity.
+The test also checks that discovery training and validation seeds are disjoint.
+A live SIGTERM test confirms that an active worker exits, its attempt is marked
+interrupted, and a resumed study completes. The rendering fixture includes a
+primary 100-day fidelity comparison as well as short-horizon diagnostics.
+Final test logs are `/tmp/task5-heterogeneity-tests.log`, `/tmp/task5-focused.log`,
+and `/tmp/task5-legacy.log`.
+
+Checkpointing initially exposed a Python 3.12 compatibility issue: converting
+NumPy scalar order prices to Python floats changes summation rounding. Tagged
+scalar serialization preserves transition-relevant types. Historical wealth
+values remain ordinary floats because they do not affect future decisions.
+The exact-continuation and legacy checks passed after that correction.
+
+### Pilot protocol
+
+Study: `results/task5_heterogeneity_20261030`. Five stored atlas configurations
+are used: reference coordinate `(4, 3)` variants 0/6/7, and liquidity coordinate
+`(6, 0)` variants 6/7. Stored floating-point parameter values are retained exactly.
+Variant 0 uses original forcing and persistent orders; variant 6 uses zero closing
+noise, constant dividends, and persistent orders; variant 7 adds day expiry.
+
+Development seeds are 300–309; independent validation seeds are 310–359. Each of
+300 references runs for 2,000 days. Checkpoints after 100, 500, and 1,000 days
+yield 900 jobs, each continuing for 1,000 days at 1/2/4/8/16/full portfolio groups
+per strategy. Identical snapshots are deduplicated within a job. Every full-detail
+continuation must match reference daily arrays and the final state/RNG digest
+before its artifact is published.
+
+Primary comparisons use horizons 100 and 1,000; horizons 1 and 20 are descriptive.
+Tolerances, transforms, seed-bootstrap settings, and lagged/current discovery
+settings were frozen in the study manifest before simulation. The
+[README](README.md#portfolio-detail-and-structure-discovery-task-5) defines
+them. Intervals are exploratory per comparison, not a simultaneous certification
+of a universal threshold. Independent ABM seed halves report sampling variability
+without changing the equivalence tolerances.
+
+Task 4's [historical hard-reduction comparison](#hard-rule-deterministic-reduction-task-4-2026-10-27)
+remains a separate baseline. Its one deterministic pool per strategy discards
+individual trading and changes matching; it is not Task 5's one-group endpoint.
+The older cohorts and interventions must not be treated as paired Task 5 runs.
+
 ## Hard-rule deterministic reduction: task 4 (2026-10-27)
 
 Implemented on `feat/research-hard-reduction`, branched from integration commit
@@ -143,6 +237,10 @@ explain ABM liquidity requires further closure validation. The queue-retaining
 companion is not a fixed-size continuation target; use the day map on its
 conserved-resource surface for any subsequent regularized-map work. No smoothing,
 continuation, Lyapunov calculation, or multifractal analysis was added here.
+
+The 2026-10-30 Task 5 revision supersedes this original smoothing handoff with
+portfolio compression and data-driven discovery; the comparison above remains
+the recorded hard-reduction baseline.
 
 ![Fresh-cohort trading continuity](experiments/figures/task4_20261027/continuity.png)
 

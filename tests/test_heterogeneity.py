@@ -5,9 +5,12 @@ import gzip
 import json
 import os
 from pathlib import Path
+import signal
+import sqlite3
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -208,8 +211,8 @@ class WorkflowTests(unittest.TestCase):
 
     def test_cli_recovery_corruption_and_render(self):
         root = self.root / 'study'
-        study = generate_study(self.atlas, root, development=(300,), validation=(310,), days=80,
-                               checkpoints=(20,), continuation_days=60, levels=(1, 'full'), horizons=(1, 20, 60))
+        study = generate_study(self.atlas, root, development=(300,), validation=(310,), days=120,
+                               checkpoints=(20,), continuation_days=100, levels=(1, 'full'), horizons=(1, 20, 100))
         cli = [sys.executable, str(ROOT / 'experiments/run_heterogeneity.py')]
         def call(args, expected=0):
             result = subprocess.run(cli+args, capture_output=True, text=True)
@@ -241,6 +244,8 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(original_hash, (reference_path.parent / 'complete.json').read_bytes())
         rendered = json.loads(call(['render', str(root), '--bootstrap-resamples', '100']).strip().splitlines()[-1])
         report = json.loads((Path(rendered['directory']) / 'summary.json').read_text())
+        self.assertEqual(len(report['thresholds']), 10)
+        self.assertTrue(all(row['score'] == 0 for row in report['comparisons'] if row['level'] == 'full'))
         discovery = report['discovery']
         if discovery.get('status') == 'ok':
             for mode in ('current', 'lagged'):
@@ -251,6 +256,45 @@ class WorkflowTests(unittest.TestCase):
         artifact = root / 'reference/runs' / refs[0]['run_id']
         with self.assertRaises(ValueError):
             validate_artifact(artifact, refs[0], {'changed': True})
+
+    def test_signal_stops_active_worker_and_resume_recovers(self):
+        root = self.root / 'signal-study'
+        generate_study(self.atlas, root, development=(300,), validation=(310,), days=80,
+                       checkpoints=(20,), continuation_days=60, levels=('full',), horizons=(60,))
+        cli = [sys.executable, str(ROOT / 'experiments/run_heterogeneity.py')]
+        with (self.root / 'signal.log').open('w') as stream:
+            process = subprocess.Popen(cli + ['run', str(root)], stdout=stream, stderr=subprocess.STDOUT)
+            worker_pid = None
+            try:
+                deadline = time.monotonic() + 20
+                while process.poll() is None and time.monotonic() < deadline:
+                    ledger = root / 'reference/ledger.sqlite'
+                    if ledger.exists():
+                        try:
+                            with sqlite3.connect(ledger) as db:
+                                row = db.execute("SELECT pid FROM attempts WHERE state='running' AND pid IS NOT NULL").fetchone()
+                            if row:
+                                worker_pid = row[0]
+                                break
+                        except sqlite3.OperationalError:
+                            pass
+                    time.sleep(.01)
+                self.assertIsNotNone(worker_pid, 'An active worker was not observed')
+                process.send_signal(signal.SIGTERM)
+                self.assertEqual(process.wait(timeout=15), 2)
+            finally:
+                if process.poll() is None:
+                    process.kill()
+                    process.wait()
+        with self.assertRaises(ProcessLookupError):
+            os.kill(worker_pid, 0)
+        with sqlite3.connect(root / 'reference/ledger.sqlite') as db:
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM runs WHERE state='interrupted'").fetchone()[0], 1)
+            self.assertEqual(db.execute('SELECT stop_reason FROM invocations').fetchone()[0], 'signal_15')
+        resumed = subprocess.run(cli + ['resume', str(root)], capture_output=True, text=True)
+        self.assertEqual(resumed.returncode, 0, resumed.stdout[-2000:] + resumed.stderr[-2000:])
+        with sqlite3.connect(root / 'reference/ledger.sqlite') as db:
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM runs WHERE state!='complete'").fetchone()[0], 0)
 
     def test_invalid_design_rejected_before_writes(self):
         root = self.root / 'invalid'

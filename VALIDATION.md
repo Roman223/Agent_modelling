@@ -8,6 +8,12 @@ is `6db78d5`. The ordinary market loop is shared with the checkpoint interface;
 the existing simulation APIs, model rules, random-draw order, and schema-1 bundle
 layout are preserved. Existing untracked research files remain untouched.
 
+Validated task head `fcd40a6` merged on 2026-10-30 through
+[PR #8](https://github.com/Roman223/Agent_modelling/pull/8) as `287bd13` into
+`research/emergent-dynamics`. The merged tree was verified identical to that
+validated head before this documentation update. Integration PR #3 remains draft
+for final combined user validation.
+
 The experiment compresses individual portfolios once, after a specified number
 of completed trading days, and then resumes the original individual trading.
 It retains every trader, original order ownership and queue priority, price
@@ -246,7 +252,7 @@ would test state sufficiency and learned forecasts against stronger persistence
 and configuration-specific baselines, including generalization within each
 market configuration. Any permanent compression or reduced-agent simulation
 needs a new validation design; the present one-off intervention cannot establish
-it. Specify and approve that follow-up before implementation. Task 7's
+it. Specify that follow-up before implementation. Task 7's
 multifractal scope is unchanged, and integration PR #3 remains draft for the
 combined user validation.
 

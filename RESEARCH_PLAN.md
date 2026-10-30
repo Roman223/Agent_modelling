@@ -24,7 +24,7 @@ PR focused on that task's changes. Use merge commits to retain the task history.
 | 2 | `feat/research-experiment-runner` | Resumable experiments, compact artifacts, provenance and resource limits | Merged via [PR #5](https://github.com/Roman223/Agent_modelling/pull/5) |
 | 3 | `feat/research-parameter-atlas` | One-dimensional sweeps and coarse two-dimensional parameter maps | Merged via [PR #6](https://github.com/Roman223/Agent_modelling/pull/6) |
 | 4 | `feat/research-hard-reduction` | Hard-rule deterministic reduction and comparisons with controlled ABM runs | Merged via [PR #7](https://github.com/Roman223/Agent_modelling/pull/7) |
-| 5 | `feat/research-heterogeneity-study` | Representative portfolios, minimum retained individuality for ABM fidelity, and data-driven structure discovery | Complete and validated; [PR #8](https://github.com/Roman223/Agent_modelling/pull/8) awaiting integration |
+| 5 | `feat/research-heterogeneity-study` | Representative portfolios, minimum retained individuality for ABM fidelity, and data-driven structure discovery | Merged via [PR #8](https://github.com/Roman223/Agent_modelling/pull/8) |
 | 6 | `feat/research-bifurcation-analysis` | Reassess the appropriate dynamics analysis after task 5; deterministic continuation/stability only if justified | Deferred pending task 5 findings |
 | 7 | `feat/research-multifractal-analysis` | MF-DFA, surrogate/GARCH controls, validation and pilot results | Pending |
 
@@ -304,6 +304,10 @@ integration PR draft and retain final user validation before merging into `main`
 
 ## Task 5 handoff
 
+Validated task head `fcd40a6` merged through
+[PR #8](https://github.com/Roman223/Agent_modelling/pull/8) as `287bd13` on
+2026-10-30. The merged tree matched the validated head before this handoff update.
+
 Task 5 implements exact market checkpoints, conservative one-off portfolio
 compression, retained-detail measures, a bounded resumable study, and current/
 lagged structure discovery. Simulation execution is reproducible at `6db78d5`;
@@ -330,6 +334,6 @@ Additional lags have no consistent advantage across the three targets. These
 results support further state/prediction validation, but no autonomous transition
 map has been validated. Keep Task 6's deterministic continuation route deferred.
 Its next specification should assess stronger forecasting baselines and
-within-configuration generalization before claiming a closed reduced model;
-approve that specification before implementation. Task 7 is unchanged. Keep
+within-configuration generalization before claiming a closed reduced model.
+Specify that follow-up before implementation. Task 7 is unchanged. Keep
 integration PR #3 draft until the combined work receives final user validation.

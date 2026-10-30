@@ -249,6 +249,29 @@ projected using those frozen reference-trained models. The report contains numer
 records, transform arrays, and PNG/PDF figures, with independently recorded rendering
 provenance. See VALIDATION.md for completed checks and pilot findings.
 
+The current feature vector already includes accepted-price memory signals and the
+no-trade streak. The lagged variant appends earlier feature vectors to test whether
+they contain useful additional information; it leaves the trader decision rules
+unchanged. Cluster stability is conditional on the frozen development scaler/PCA;
+five seed-bootstrap repetitions refit K-means, not the complete representation pipeline.
+Reconstruction errors describe each representation's own feature space. The
+subsequent 20-day targets are shared across modes and provide the direct comparison
+of predictive usefulness. The forecast baseline is the development cohort's global
+mean; stronger forecasting baselines remain a subsequent validation step.
+
+The [completed pilot and validation record](VALIDATION.md#retained-individuality-and-structure-discovery-task-5-2026-10-30)
+contains 300 references and 5,400 continuations across 900 checkpoint jobs.
+All full-detail continuations reproduced their references exactly. Eleven of
+30 tested conditions have candidate compression thresholds; the pilot does not
+support a universal cutoff. Both representations find five stable clusters,
+with no consistent predictive advantage from adding lags. These findings concern
+one-off portfolio information, while all individual trading remains in place.
+
+The recorded pilot used four workers after an initial two-worker benchmark and
+user approval; CLI defaults remain two. Its execution source is `6db78d5`.
+Historical resume requires that source/runtime; the current renderer can read
+the completed artifacts with separately recorded rendering provenance.
+
 ## Hard-rule deterministic reduction (task 4)
 
 The reduction is an explicit research variant, separate from the unchanged

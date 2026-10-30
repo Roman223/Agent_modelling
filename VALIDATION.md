@@ -56,7 +56,9 @@ retried reference reproduces its original bytes and dependent artifact identity.
 The test also checks that discovery training and validation seeds are disjoint.
 A live SIGTERM test confirms that an active worker exits, its attempt is marked
 interrupted, and a resumed study completes. The rendering fixture includes a
-primary 100-day fidelity comparison as well as short-horizon diagnostics.
+primary 100-day fidelity comparison, all eight supported detail levels, and
+deduplication of capped full-detail states. The interruption test observes launch
+logs, avoiding read-lock contention with the ledger writer during startup.
 Final test logs are `/tmp/task5-heterogeneity-tests.log`, `/tmp/task5-focused.log`,
 and `/tmp/task5-legacy.log`.
 
@@ -93,6 +95,164 @@ Task 4's [historical hard-reduction comparison](#hard-rule-deterministic-reducti
 remains a separate baseline. Its one deterministic pool per strategy discards
 individual trading and changes matching; it is not Task 5's one-group endpoint.
 The older cohorts and interventions must not be treated as paired Task 5 runs.
+
+All 300 reference runs completed. The table describes the independent validation
+cohort, seeds 310–359, over reference days 1,001–2,000. Stalls mean 100 terminal
+exact no-trade days. Volume and no-trade entries are medians of per-run summaries.
+
+| Full-ABM setting | Terminal stalls | Mean daily volume | No-trade days |
+| --- | ---: | ---: | ---: |
+| Reference, original forcing, persistent orders | 1/50 | 3,372.438 | 0.0% |
+| Reference, zero closing noise, constant dividends, persistent orders | 18/50 | 170.7155 | 10.75% |
+| Reference, zero closing noise, constant dividends, day orders | 2/50 | 2.7175 | 13.4% |
+| Liquidity, zero closing noise, constant dividends, persistent orders | 32/50 | 0.739 | 97.8% |
+| Liquidity, zero closing noise, constant dividends, day orders | 3/50 | 3.113 | 12.2% |
+
+The liquidity stall contrast appears in this larger cohort, but neither persistent
+orders nor day expiry determine a single outcome for every seed. These full-ABM
+figures establish the new comparison baseline; they do not measure compression
+fidelity or agreement with actual markets.
+
+### Completed execution and report audit
+
+- All 300 references, 900 checkpoint jobs, and 5,400 unique continuations completed.
+  Every full-detail continuation matched its uninterrupted reference exactly.
+- The study started with two workers and switched to four after the user approved
+  the measured memory use. Two in-flight reference attempts were interrupted by
+  that switch and recovered on resume. There were no failed or missing jobs;
+  every continuation job completed on its first attempt.
+- References took 12m 21.84s including the worker-count change; continuations took
+  71m 31.30s. Each phase benchmarked serially before expanding. Peak completed-worker
+  RSS was 225.5 MiB for references and 239.9 MiB for continuations.
+- All batches stayed below 120 minutes, with one native numerical thread per
+  worker, a 6 GiB study memory limit, 5 GiB output cap, and 10 GiB free-disk floor.
+  The audited study occupies 0.837 GiB; 30.92 GiB remained free.
+- Reporting took 41.30 seconds and peaked at 949.0 MiB RSS under a 4 GiB
+  address-space cap. All four PNG/PDF figures were visually inspected.
+
+Final report identity:
+`d825cb3e7c155feafe2e0ee50d2169658a0d81ebbe2b160992b8c23112e1e522`.
+It contains 21,600 per-run/horizon records, fidelity comparisons, candidate
+thresholds, independent ABM sampling baselines, frozen numerical transforms,
+and four figures in PNG/PDF. All 11 report payload hashes, all 1,200 input artifact
+hashes/identities, and all 26 execution-source hashes against commit `6db78d5`
+were verified. The audit receipt is `results/task5_heterogeneity_20261030/audit.json`.
+
+The final renderer adds colors for the eight levels/checkpoints accepted by the
+CLI and displays the validation seed count. These plotting-only changes have
+independent rendering provenance. Resume historical execution at `6db78d5`;
+the current renderer reads the completed study without changing its simulation
+identity. The final 13-check Task 5 suite passed again after the rendering and
+interruption-observer adjustments.
+
+### Fidelity findings
+
+There is no supported universal individuality cutoff in this pilot. Of the 150
+held-out compressed-level comparisons, 47 were within tolerance, 50 outside,
+and 53 inconclusive. Full detail was exact in all 30 condition comparisons.
+Requiring a level and every finer tested level to pass leaves 11 candidate
+thresholds across 30 configuration/checkpoint/horizon combinations.
+
+Entries below give the smallest supported number of groups per strategy at
+checkpoints 100 / 500 / 1,000, respectively. A dash means no supported compressed
+threshold: at least one finer tested level was outside tolerance or inconclusive.
+It does not mean every compressed level was proven inadequate.
+
+| Configuration | Next 100 days | Next 1,000 days |
+| --- | --- | --- |
+| Reference, original forcing, persistent (`v0`) | — / — / — | — / — / 1 |
+| Reference, zero closing noise, constant dividends, persistent (`v6`) | 1 / — / 4 | — / — / — |
+| Reference, zero closing noise, constant dividends, day orders (`v7`) | 1 / 8 / 1 | — / — / — |
+| Liquidity, zero closing noise, constant dividends, persistent (`v6`) | 1 / — / 2 | — / — / — |
+| Liquidity, zero closing noise, constant dividends, day orders (`v7`) | 1 / 16 / 4 | — / — / — |
+
+For the original-forcing reference, one group per strategy at checkpoint 1,000
+is a candidate over the following 1,000 days: the maximum normalized empirical
+distance is 0.370, with bootstrap interval [0.286, 0.731], and the paired stall
+difference interval is [-0.0839, 0.0839]. Every finer tested level also passes.
+The other five original-forcing conditions lack a supported threshold; their
+compressed comparisons are mostly inconclusive, with none classified outside
+tolerance. This distinction matters when separating lack of evidence from a
+demonstrated fidelity gap.
+
+Across the four controlled configurations, no compressed level passes the
+1,000-day criteria: 46 of those 60 comparisons are outside tolerance and 14
+inconclusive. Shorter-horizon candidates therefore do not establish long-horizon
+fidelity. Neither increasing detail nor changing the horizon gives a uniformly
+monotone result.
+
+Pooled median retained portfolio dispersion is approximately 68%, 92%, 98%, and
+99.9% for 2/4/8/16 groups; it is near zero for one group. These summaries pool
+strategies, configurations, and checkpoints. Of 2,250 held-out strategy/checkpoint
+cases, 609 have zero original dispersion and remain explicitly undefined in the
+retention ratio. High retained variance alone does not guarantee the tested
+market outcomes. The per-case joint portfolio errors and availability changes
+remain in the numeric records.
+
+These are one-off initial-information interventions. All 100 traders, their
+individual decisions, and their order ownership remain; trading can recreate
+portfolio differences. The results do not validate a permanent one-pool model,
+a reduced agent count, a runtime speedup, or agreement with actual market data.
+Task 4's separate closure failures remain unchanged.
+
+### Discovered structure and the lag comparison
+
+The representation uses 9,800 development rows and 49,000 held-out rows from
+independent seed cohorts. Current features have 66 coordinates; the lagged
+version has 264. Both select five clusters using development silhouette scores
+in an eight-component PCA representation.
+
+| Representation | Development variance retained by 8 PCs | Held-out reconstruction MSE | Five seed-bootstrap cluster ARIs |
+| --- | ---: | ---: | --- |
+| Current | 83.52% | 0.1711 | 0.9885–0.9988 |
+| Current plus lags 1/5/20 | 81.44% | 0.1930 | 0.9863–0.9982 |
+
+Reconstruction losses refer to different feature spaces and are not a direct
+forecast comparison. Cluster stability refits K-means with frozen scaling/PCA;
+it does not quantify uncertainty in the entire representation fit. The clusters
+separate distinct activity/return patterns, including a group whose median and
+interquartile future outcomes are zero return, zero volume, and all no-trade days.
+Cluster identifiers and colors are arbitrary within each representation.
+
+The shared next-20-day targets give a direct descriptive prediction comparison.
+The baseline is the development cohort's global mean; cluster predictions use
+development cluster means, evaluated on the held-out runs.
+
+| Future target | Global-mean MAE | Current-feature MAE | Lagged-feature MAE |
+| --- | ---: | ---: | ---: |
+| Cumulative log return | 0.10840 | 0.05963 | 0.06076 |
+| Mean daily log(1 + volume) | 3.00730 | 0.91636 | 0.90643 |
+| No-trade fraction | 0.24424 | 0.06253 | 0.06246 |
+
+Both representations improve on the global-mean baseline for all three targets;
+their seed-bootstrap MAE-difference intervals are entirely below zero. Additional
+lags give a small volume improvement, slightly worse return prediction, and
+almost unchanged inactivity prediction. This comparison does not show a
+consistent advantage for the lagged representation. It does not rule out other
+temporal models: current features already include price-memory signals, and
+cluster-mean prediction is a limited forecasting method.
+
+The frozen transforms were also applied to every held-out compressed continuation.
+The report records their reconstruction errors, cluster occupancies, and future
+prediction errors without refitting on intervention data. This establishes
+reproducible descriptive and predictive structure for the selected ABM cases,
+not an autonomous low-dimensional dynamics model or a chaos result.
+
+### Task 6 handoff
+
+Keep deterministic continuation and bifurcation analysis deferred: no autonomous
+deterministic transition map has been validated. The next useful specification
+would test state sufficiency and learned forecasts against stronger persistence
+and configuration-specific baselines, including generalization within each
+market configuration. Any permanent compression or reduced-agent simulation
+needs a new validation design; the present one-off intervention cannot establish
+it. Specify and approve that follow-up before implementation. Task 7's
+multifractal scope is unchanged, and integration PR #3 remains draft for the
+combined user validation.
+
+![Held-out fidelity versus retained portfolio groups](experiments/figures/task5_20261030/fidelity_profiles.png)
+
+![Market states learned from current and lagged observations](experiments/figures/task5_20261030/discovered_structure.png)
 
 ## Hard-rule deterministic reduction: task 4 (2026-10-27)
 

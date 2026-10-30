@@ -16,7 +16,7 @@ from src.experiments import Limits, directory_bytes, disk_guard, experiment_lock
 from src.heterogeneity_analysis import SETTINGS, collect_fidelity, discover_structure
 from src.heterogeneity_study import reference_jobs, continuation_jobs, fingerprint, validate_artifact
 
-COLORS = ['#155f9b', '#d78024', '#2b876b', '#a64253', '#755699', '#555555']
+COLORS = ['#155f9b', '#d78024', '#2b876b', '#a64253', '#755699', '#555555', '#8c6d31', '#4f97a3']
 
 
 def _save(fig, directory, name):
@@ -55,7 +55,7 @@ def figures(directory, study, fidelity, discovery, numeric):
                 ax.set_ylabel('Maximum normalized distribution error')
                 ax.grid(alpha=.2)
         axes[0, 0].legend(fontsize=8)
-        fig.suptitle('Held-out ABM fidelity | Bootstrap intervals; stall bounds checked separately', y=1.005)
+        fig.suptitle(f'Held-out ABM fidelity | {len(study["validation_seeds"])} seeds | Bootstrap intervals; stall bounds checked separately', y=1.005)
         fig.tight_layout()
         _save(fig, directory, 'fidelity_profiles')
     fig, axes = plt.subplots(1, 2, figsize=(12, 4.5))

@@ -212,7 +212,8 @@ class WorkflowTests(unittest.TestCase):
     def test_cli_recovery_corruption_and_render(self):
         root = self.root / 'study'
         study = generate_study(self.atlas, root, development=(300,), validation=(310,), days=120,
-                               checkpoints=(20,), continuation_days=100, levels=(1, 'full'), horizons=(1, 20, 100))
+                               checkpoints=(20,), continuation_days=100,
+                               levels=(1, 2, 4, 8, 16, 32, 64, 'full'), horizons=(1, 20, 100))
         cli = [sys.executable, str(ROOT / 'experiments/run_heterogeneity.py')]
         def call(args, expected=0):
             result = subprocess.run(cli+args, capture_output=True, text=True)
@@ -225,7 +226,9 @@ class WorkflowTests(unittest.TestCase):
         for job in jobs:
             path = root / 'continuation/runs' / job['run_id']
             validate_artifact(path, job, study['execution'], deep=True)
-            self.assertTrue(json.loads((path / 'levels.json').read_text())['full_detail_verified'])
+            levels = json.loads((path / 'levels.json').read_text())
+            self.assertTrue(levels['full_detail_verified'])
+            self.assertLess(len(levels['states']), len(levels['levels']))
         before = {p: p.stat().st_mtime_ns for p in root.glob('*/runs/*/complete.json')}
         call(['resume', str(root), '--workers', '1'])
         self.assertEqual(before, {p: p.stat().st_mtime_ns for p in before})
@@ -268,18 +271,22 @@ class WorkflowTests(unittest.TestCase):
             try:
                 deadline = time.monotonic() + 20
                 while process.poll() is None and time.monotonic() < deadline:
-                    ledger = root / 'reference/ledger.sqlite'
-                    if ledger.exists():
-                        try:
-                            with sqlite3.connect(ledger) as db:
-                                row = db.execute("SELECT pid FROM attempts WHERE state='running' AND pid IS NOT NULL").fetchone()
-                            if row:
-                                worker_pid = row[0]
+                    # Observe the append-only launch event instead of polling the
+                    # SQLite ledger while its zero-timeout writer is committing.
+                    for log_path in (root / 'reference/invocations').glob('*.jsonl'):
+                        for line in log_path.read_text().splitlines():
+                            try:
+                                event = json.loads(line)
+                            except json.JSONDecodeError:
+                                continue  # A concurrent append can leave a partial final line.
+                            if event.get('event') == 'launched':
+                                worker_pid = event['pid']
                                 break
-                        except sqlite3.OperationalError:
-                            pass
+                    if worker_pid is not None:
+                        break
                     time.sleep(.01)
-                self.assertIsNotNone(worker_pid, 'An active worker was not observed')
+                self.assertIsNotNone(worker_pid, 'An active worker was not observed:\n'
+                                     + (self.root / 'signal.log').read_text()[-4000:])
                 process.send_signal(signal.SIGTERM)
                 self.assertEqual(process.wait(timeout=15), 2)
             finally:

@@ -102,7 +102,20 @@ def simulate(scenario=SCENARIOS['baseline'], days=1000, *, verbose=False, log_op
         raise
 
 
-def _simulate(scenario, days, verbose, run_log):
+@dataclass
+class _Market:
+    """Mutable runtime shared by legacy runs and explicit research continuations."""
+
+    scenario: Scenario
+    asset: Asset
+    traders: list
+    book: OrderBook
+    history: dict
+    initial_wealths: dict
+    rng_state_before: tuple
+
+
+def _initialize_market(scenario, verbose, run_log):
     rng_state_before = np.random.get_state()
     history = {key: [] for key in ('days', 'noise_avg', 'chartist_avg', 'fundamentalist_avg')}
     log = print if verbose else (lambda *args, **kwargs: None)
@@ -134,68 +147,84 @@ def _simulate(scenario, days, verbose, run_log):
     asset.evolution_log = []
     asset.trader_counts_history = []
 
-    for day in range(days):
-        run_log.phase, run_log.day = 'trading', day
-        previous_price = asset.current_price
-        submitted = {kind: {'buy_orders': 0, 'sell_orders': 0,
-                            'buy_quantity': 0, 'sell_quantity': 0} for kind in TRADER_TYPES}
-        executed, price_formation = [], {}
-        asset.update_dividend()
+    return _Market(scenario, asset, traders, order_book, history, initial_wealths, rng_state_before)
 
-        # Strategy changes every 100 days.
-        if scenario.evolution and day % 100 == 0 and day > 0:
-            _evolve_traders(traders, day, asset.evolution_log, log, run_log,
-                            chartist_alpha=scenario.chartist_alpha,
-                            fundamentalist_gamma=scenario.fundamentalist_gamma)
 
-        trading_halted = asset.check_halt_status() if scenario.halt_check else False
+def _advance_market(market, day, days, verbose, run_log, observer=None):
+    scenario, asset, traders = market.scenario, market.asset, market.traders
+    order_book, history = market.book, market.history
+    log = print if verbose else (lambda *args, **kwargs: None)
+    run_log.phase, run_log.day = 'trading', day
+    previous_price = asset.current_price
+    submitted = {kind: {'buy_orders': 0, 'sell_orders': 0,
+                        'buy_quantity': 0, 'sell_quantity': 0} for kind in TRADER_TYPES}
+    executed, price_formation = [], {}
+    asset.update_dividend()
 
-        if not trading_halted:
-            for trader in traders:
-                trace = {} if run_log.wants_detail('decisions', run_log.trader_id(trader)) else None
-                if trader.cash <= 0 and trader.assets <= 0:
-                    if trader.active:
-                        run_log.event('trader_deactivated', trader_id=run_log.trader_id(trader),
-                                      type=trader.type, reason='no_cash_and_no_holdings')
-                    trader.active = False
-                    if trace is not None:
-                        run_log.decision(trader, {'reason': 'no_cash_and_no_holdings'},
-                                         (None, None, None), False)
-                    continue
-                order_type, price, qty = trader.make_decision(asset, trace=trace)
-                accepted_order = bool(order_type and price and qty and qty > 0)
-                if trace is not None:
-                    run_log.decision(trader, trace, (order_type, price, qty), accepted_order)
-                if order_type and price and qty:
-                    order_book.add_order(order_type, price, qty, id(trader))
-                    if run_log.enabled and accepted_order:
-                        submitted[trader.type][order_type + '_orders'] += 1
-                        submitted[trader.type][order_type + '_quantity'] += qty
-            executed = order_book.match_orders(
-                traders, asset,
-                on_trade=run_log.trade if run_log.options.level in ('trades', 'decisions') else None,
-                on_price=price_formation.update if run_log.enabled else None)
-        else:
-            asset.halt_events.append(day)
-            run_log.event('trading_skipped', reason='circuit_breaker', remaining=asset.halt_remaining)
+    # Strategy changes every 100 days.
+    if scenario.evolution and day % 100 == 0 and day > 0:
+        _evolve_traders(traders, day, asset.evolution_log, log, run_log,
+                        chartist_alpha=scenario.chartist_alpha,
+                        fundamentalist_gamma=scenario.fundamentalist_gamma)
 
+    trading_halted = asset.check_halt_status() if scenario.halt_check else False
+
+    if not trading_halted:
         for trader in traders:
-            trader.update_wealth(asset.current_price)
+            trace = {} if run_log.wants_detail('decisions', run_log.trader_id(trader)) else None
+            if trader.cash <= 0 and trader.assets <= 0:
+                if trader.active:
+                    run_log.event('trader_deactivated', trader_id=run_log.trader_id(trader),
+                                  type=trader.type, reason='no_cash_and_no_holdings')
+                trader.active = False
+                if trace is not None:
+                    run_log.decision(trader, {'reason': 'no_cash_and_no_holdings'},
+                                     (None, None, None), False)
+                continue
+            order_type, price, qty = trader.make_decision(asset, trace=trace)
+            accepted_order = bool(order_type and price and qty and qty > 0)
+            if trace is not None:
+                run_log.decision(trader, trace, (order_type, price, qty), accepted_order)
+            if order_type and price and qty:
+                order_book.add_order(order_type, price, qty, id(trader))
+                if run_log.enabled and accepted_order:
+                    submitted[trader.type][order_type + '_orders'] += 1
+                    submitted[trader.type][order_type + '_quantity'] += qty
+        executed = order_book.match_orders(
+            traders, asset,
+            on_trade=run_log.trade if run_log.options.level in ('trades', 'decisions') else None,
+            on_price=price_formation.update if run_log.enabled else None)
+    else:
+        asset.halt_events.append(day)
+        run_log.event('trading_skipped', reason='circuit_breaker', remaining=asset.halt_remaining)
 
-        if run_log.enabled:
-            _log_step(run_log, asset, traders, order_book, previous_price, submitted,
-                      executed, price_formation, trading_halted)
+    for trader in traders:
+        trader.update_wealth(asset.current_price)
 
-        # Sample group statistics every 100 days and on the final day.
-        if day % 100 == 0 or day == days-1:
-            _record_status(day, asset, traders, scenario, trading_halted, log, history)
+    if run_log.enabled:
+        _log_step(run_log, asset, traders, order_book, previous_price, submitted,
+                  executed, price_formation, trading_halted)
 
-        expired = order_book.expire_day_orders()
-        if expired is not None:
-            run_log.event('orders_expired', **expired)
+    if observer is not None:
+        observer(market, day, previous_price, executed)
 
-    return SimulationResult(scenario, days, asset, traders, history, initial_wealths,
-                            rng_state_before, np.random.get_state(), run_log=run_log)
+    # Sample group statistics every 100 days and on the final day.
+    if day % 100 == 0 or day == days-1:
+        _record_status(day, asset, traders, scenario, trading_halted, log, history)
+
+    expired = order_book.expire_day_orders()
+    if expired is not None:
+        run_log.event('orders_expired', **expired)
+
+
+
+def _simulate(scenario, days, verbose, run_log):
+    market = _initialize_market(scenario, verbose, run_log)
+    for day in range(days):
+        _advance_market(market, day, days, verbose, run_log)
+    return SimulationResult(scenario, days, market.asset, market.traders, market.history,
+                            market.initial_wealths, market.rng_state_before,
+                            np.random.get_state(), run_log=run_log)
 
 
 def _log_step(run_log, asset, traders, book, previous_price, submitted, executed,

@@ -201,6 +201,29 @@ regularized-companion task; it is a research scope revision, not an implemented
 model or a completed experiment. Task 4 passed implementation checks, but its
 scientific fidelity and the combined project remain subject to user review.
 
+### Approved implementation protocol
+
+The implementation plan narrows the first pilot to **one-off checkpoint
+compression**, preserving all individual traders and their independent trading.
+This measures how much initial portfolio information is needed over a specified
+horizon; it does not establish a permanently compressed model or a speedup.
+
+Use reference variants 0/6/7 and liquidity variants 6/7; development seeds 300–309
+and held-out seeds 310–359; 2,000-day references; checkpoints after 100/500/1,000
+completed trading days; and 1,000-day continuations. Report horizons 1/20/100/1,000,
+with threshold assessment at 100/1,000. A full-detail continuation must reproduce
+the uninterrupted ABM exactly. Collect bounded observations and freeze the
+moderate tolerances before held-out analysis: 10 percentage points for stalls,
+5 for inactivity/resource fractions, and log(1.2) distribution distances for
+volume, volatility, and cumulative returns under the documented transforms.
+
+Group portfolios by nested Ward cuts; conserve cash and integer shares, record
+realized profiles after integer balancing, and retain original order ownership.
+Fit current/lagged PCA and clustering on development runs only. Keep uncertainty
+and inconclusive outcomes explicit. Finish the fixed pilot through bounded,
+resumable batches under the existing machine caps. The README specifies the
+interfaces, exact transformations, and workflow.
+
 ### Research question and controlled comparison
 
 Find how much individual portfolio variation must be retained before a simpler

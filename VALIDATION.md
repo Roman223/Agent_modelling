@@ -1,5 +1,259 @@
 # Engineering improvements: validation record
 
+## Retained individuality and structure discovery: task 5 (2026-10-30)
+
+Implemented on `feat/research-heterogeneity-study`, branched from integration
+commit `abc1324` after the approved scope revision. Simulation execution source
+is `6db78d5`. The ordinary market loop is shared with the checkpoint interface;
+the existing simulation APIs, model rules, random-draw order, and schema-1 bundle
+layout are preserved. Existing untracked research files remain untouched.
+
+The experiment compresses individual portfolios once, after a specified number
+of completed trading days, and then resumes the original individual trading.
+It retains every trader, original order ownership and queue priority, price
+memory, and RNG state. This tests sensitivity to initial portfolio information;
+it does not supply a permanently compressed simulator or a speedup. No governing
+market equations or deterministic chaos claim are introduced.
+
+SciPy's Ward linkage and nested cuts supply the grouping. Its minimum-cost
+assignment supplies exact empirical joint Wasserstein-1 distances for equal
+uniform portfolio samples, avoiding a separate transport LP solver. Scaling,
+PCA, K-means, silhouette scores, and adjusted Rand scores reuse scikit-learn.
+HARK was assessed as a distribution-representation precedent; replacing the
+existing market engine would not preserve its trading and queue semantics.
+SciPy is now a direct dependency; the existing pinned version is unchanged.
+References: [SciPy Ward linkage](https://docs.scipy.org/doc/scipy/reference/generated/scipy.cluster.hierarchy.ward.html),
+[minimum-cost assignment](https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.linear_sum_assignment.html),
+[scikit-learn clustering](https://scikit-learn.org/stable/modules/clustering.html),
+and [HARK architecture](https://docs.econ-ark.org/docs/overview/ARKitecture.html).
+
+### Validation
+
+| Command | Result |
+| --- | --- |
+| `.venv/bin/python tests/test_heterogeneity.py` | 13/13 passed |
+| `.venv/bin/python tests/test_core.py` | 19/19 passed |
+| `.venv/bin/python tests/test_logging.py` | 11/11 passed |
+| `.venv/bin/python tests/test_bundles.py` | 9/9 passed |
+| `.venv/bin/python tests/test_experiments.py` | 18/18 passed |
+| `.venv/bin/python tests/test_atlas.py` | 10/10 passed |
+| `.venv/bin/python tests/test_reduction.py` | 16/16 passed |
+| `.venv/bin/python tests/test_legacy_equivalence.py` | 25/25 identical to notebook `84fa2a6` |
+| Python compilation, `pip check`, and `git diff --check` | Passed |
+
+All 96 focused checks passed. New checks cover checkpoint round trips and exact
+continuations under all eight forcing/order-lifetime controls; immutable inputs
+and caller RNG restoration; nested grouping; cash and integer-share conservation;
+empty and identical portfolios; unchanged order ownership; and exact full detail.
+Known-answer outcome fixtures exercise passing, failing, inconclusive, and
+nonmonotone threshold decisions. A stall at a short horizon cannot borrow
+no-trade days from before the checkpoint.
+
+The CLI workflow test interrupts and resumes a small study, reuses published
+artifacts, rejects corrupted outputs and changed provenance, explicitly retries
+damaged reference and continuation artifacts, and renders/reuses a report. A
+retried reference reproduces its original bytes and dependent artifact identity.
+The test also checks that discovery training and validation seeds are disjoint.
+A live SIGTERM test confirms that an active worker exits, its attempt is marked
+interrupted, and a resumed study completes. The rendering fixture includes a
+primary 100-day fidelity comparison, all eight supported detail levels, and
+deduplication of capped full-detail states. The interruption test observes launch
+logs, avoiding read-lock contention with the ledger writer during startup.
+Final test logs are `/tmp/task5-heterogeneity-tests.log`, `/tmp/task5-focused.log`,
+and `/tmp/task5-legacy.log`.
+
+Checkpointing initially exposed a Python 3.12 compatibility issue: converting
+NumPy scalar order prices to Python floats changes summation rounding. Tagged
+scalar serialization preserves transition-relevant types. Historical wealth
+values remain ordinary floats because they do not affect future decisions.
+The exact-continuation and legacy checks passed after that correction.
+
+### Pilot protocol
+
+Study: `results/task5_heterogeneity_20261030`. Five stored atlas configurations
+are used: reference coordinate `(4, 3)` variants 0/6/7, and liquidity coordinate
+`(6, 0)` variants 6/7. Stored floating-point parameter values are retained exactly.
+Variant 0 uses original forcing and persistent orders; variant 6 uses zero closing
+noise, constant dividends, and persistent orders; variant 7 adds day expiry.
+
+Development seeds are 300–309; independent validation seeds are 310–359. Each of
+300 references runs for 2,000 days. Checkpoints after 100, 500, and 1,000 days
+yield 900 jobs, each continuing for 1,000 days at 1/2/4/8/16/full portfolio groups
+per strategy. Identical snapshots are deduplicated within a job. Every full-detail
+continuation must match reference daily arrays and the final state/RNG digest
+before its artifact is published.
+
+Primary comparisons use horizons 100 and 1,000; horizons 1 and 20 are descriptive.
+Tolerances, transforms, seed-bootstrap settings, and lagged/current discovery
+settings were frozen in the study manifest before simulation. The
+[README](README.md#portfolio-detail-and-structure-discovery-task-5) defines
+them. Intervals are exploratory per comparison, not a simultaneous certification
+of a universal threshold. Independent ABM seed halves report sampling variability
+without changing the equivalence tolerances.
+
+Task 4's [historical hard-reduction comparison](#hard-rule-deterministic-reduction-task-4-2026-10-27)
+remains a separate baseline. Its one deterministic pool per strategy discards
+individual trading and changes matching; it is not Task 5's one-group endpoint.
+The older cohorts and interventions must not be treated as paired Task 5 runs.
+
+All 300 reference runs completed. The table describes the independent validation
+cohort, seeds 310–359, over reference days 1,001–2,000. Stalls mean 100 terminal
+exact no-trade days. Volume and no-trade entries are medians of per-run summaries.
+
+| Full-ABM setting | Terminal stalls | Mean daily volume | No-trade days |
+| --- | ---: | ---: | ---: |
+| Reference, original forcing, persistent orders | 1/50 | 3,372.438 | 0.0% |
+| Reference, zero closing noise, constant dividends, persistent orders | 18/50 | 170.7155 | 10.75% |
+| Reference, zero closing noise, constant dividends, day orders | 2/50 | 2.7175 | 13.4% |
+| Liquidity, zero closing noise, constant dividends, persistent orders | 32/50 | 0.739 | 97.8% |
+| Liquidity, zero closing noise, constant dividends, day orders | 3/50 | 3.113 | 12.2% |
+
+The liquidity stall contrast appears in this larger cohort, but neither persistent
+orders nor day expiry determine a single outcome for every seed. These full-ABM
+figures establish the new comparison baseline; they do not measure compression
+fidelity or agreement with actual markets.
+
+### Completed execution and report audit
+
+- All 300 references, 900 checkpoint jobs, and 5,400 unique continuations completed.
+  Every full-detail continuation matched its uninterrupted reference exactly.
+- The study started with two workers and switched to four after the user approved
+  the measured memory use. Two in-flight reference attempts were interrupted by
+  that switch and recovered on resume. There were no failed or missing jobs;
+  every continuation job completed on its first attempt.
+- References took 12m 21.84s including the worker-count change; continuations took
+  71m 31.30s. Each phase benchmarked serially before expanding. Peak completed-worker
+  RSS was 225.5 MiB for references and 239.9 MiB for continuations.
+- All batches stayed below 120 minutes, with one native numerical thread per
+  worker, a 6 GiB study memory limit, 5 GiB output cap, and 10 GiB free-disk floor.
+  The audited study occupies 0.837 GiB; 30.92 GiB remained free.
+- Reporting took 41.30 seconds and peaked at 949.0 MiB RSS under a 4 GiB
+  address-space cap. All four PNG/PDF figures were visually inspected.
+
+Final report identity:
+`d825cb3e7c155feafe2e0ee50d2169658a0d81ebbe2b160992b8c23112e1e522`.
+It contains 21,600 per-run/horizon records, fidelity comparisons, candidate
+thresholds, independent ABM sampling baselines, frozen numerical transforms,
+and four figures in PNG/PDF. All 11 report payload hashes, all 1,200 input artifact
+hashes/identities, and all 26 execution-source hashes against commit `6db78d5`
+were verified. The audit receipt is `results/task5_heterogeneity_20261030/audit.json`.
+
+The final renderer adds colors for the eight levels/checkpoints accepted by the
+CLI and displays the validation seed count. These plotting-only changes have
+independent rendering provenance. Resume historical execution at `6db78d5`;
+the current renderer reads the completed study without changing its simulation
+identity. The final 13-check Task 5 suite passed again after the rendering and
+interruption-observer adjustments.
+
+### Fidelity findings
+
+There is no supported universal individuality cutoff in this pilot. Of the 150
+held-out compressed-level comparisons, 47 were within tolerance, 50 outside,
+and 53 inconclusive. Full detail was exact in all 30 condition comparisons.
+Requiring a level and every finer tested level to pass leaves 11 candidate
+thresholds across 30 configuration/checkpoint/horizon combinations.
+
+Entries below give the smallest supported number of groups per strategy at
+checkpoints 100 / 500 / 1,000, respectively. A dash means no supported compressed
+threshold: at least one finer tested level was outside tolerance or inconclusive.
+It does not mean every compressed level was proven inadequate.
+
+| Configuration | Next 100 days | Next 1,000 days |
+| --- | --- | --- |
+| Reference, original forcing, persistent (`v0`) | — / — / — | — / — / 1 |
+| Reference, zero closing noise, constant dividends, persistent (`v6`) | 1 / — / 4 | — / — / — |
+| Reference, zero closing noise, constant dividends, day orders (`v7`) | 1 / 8 / 1 | — / — / — |
+| Liquidity, zero closing noise, constant dividends, persistent (`v6`) | 1 / — / 2 | — / — / — |
+| Liquidity, zero closing noise, constant dividends, day orders (`v7`) | 1 / 16 / 4 | — / — / — |
+
+For the original-forcing reference, one group per strategy at checkpoint 1,000
+is a candidate over the following 1,000 days: the maximum normalized empirical
+distance is 0.370, with bootstrap interval [0.286, 0.731], and the paired stall
+difference interval is [-0.0839, 0.0839]. Every finer tested level also passes.
+The other five original-forcing conditions lack a supported threshold; their
+compressed comparisons are mostly inconclusive, with none classified outside
+tolerance. This distinction matters when separating lack of evidence from a
+demonstrated fidelity gap.
+
+Across the four controlled configurations, no compressed level passes the
+1,000-day criteria: 46 of those 60 comparisons are outside tolerance and 14
+inconclusive. Shorter-horizon candidates therefore do not establish long-horizon
+fidelity. Neither increasing detail nor changing the horizon gives a uniformly
+monotone result.
+
+Pooled median retained portfolio dispersion is approximately 68%, 92%, 98%, and
+99.9% for 2/4/8/16 groups; it is near zero for one group. These summaries pool
+strategies, configurations, and checkpoints. Of 2,250 held-out strategy/checkpoint
+cases, 609 have zero original dispersion and remain explicitly undefined in the
+retention ratio. High retained variance alone does not guarantee the tested
+market outcomes. The per-case joint portfolio errors and availability changes
+remain in the numeric records.
+
+These are one-off initial-information interventions. All 100 traders, their
+individual decisions, and their order ownership remain; trading can recreate
+portfolio differences. The results do not validate a permanent one-pool model,
+a reduced agent count, a runtime speedup, or agreement with actual market data.
+Task 4's separate closure failures remain unchanged.
+
+### Discovered structure and the lag comparison
+
+The representation uses 9,800 development rows and 49,000 held-out rows from
+independent seed cohorts. Current features have 66 coordinates; the lagged
+version has 264. Both select five clusters using development silhouette scores
+in an eight-component PCA representation.
+
+| Representation | Development variance retained by 8 PCs | Held-out reconstruction MSE | Five seed-bootstrap cluster ARIs |
+| --- | ---: | ---: | --- |
+| Current | 83.52% | 0.1711 | 0.9885–0.9988 |
+| Current plus lags 1/5/20 | 81.44% | 0.1930 | 0.9863–0.9982 |
+
+Reconstruction losses refer to different feature spaces and are not a direct
+forecast comparison. Cluster stability refits K-means with frozen scaling/PCA;
+it does not quantify uncertainty in the entire representation fit. The clusters
+separate distinct activity/return patterns, including a group whose median and
+interquartile future outcomes are zero return, zero volume, and all no-trade days.
+Cluster identifiers and colors are arbitrary within each representation.
+
+The shared next-20-day targets give a direct descriptive prediction comparison.
+The baseline is the development cohort's global mean; cluster predictions use
+development cluster means, evaluated on the held-out runs.
+
+| Future target | Global-mean MAE | Current-feature MAE | Lagged-feature MAE |
+| --- | ---: | ---: | ---: |
+| Cumulative log return | 0.10840 | 0.05963 | 0.06076 |
+| Mean daily log(1 + volume) | 3.00730 | 0.91636 | 0.90643 |
+| No-trade fraction | 0.24424 | 0.06253 | 0.06246 |
+
+Both representations improve on the global-mean baseline for all three targets;
+their seed-bootstrap MAE-difference intervals are entirely below zero. Additional
+lags give a small volume improvement, slightly worse return prediction, and
+almost unchanged inactivity prediction. This comparison does not show a
+consistent advantage for the lagged representation. It does not rule out other
+temporal models: current features already include price-memory signals, and
+cluster-mean prediction is a limited forecasting method.
+
+The frozen transforms were also applied to every held-out compressed continuation.
+The report records their reconstruction errors, cluster occupancies, and future
+prediction errors without refitting on intervention data. This establishes
+reproducible descriptive and predictive structure for the selected ABM cases,
+not an autonomous low-dimensional dynamics model or a chaos result.
+
+### Task 6 handoff
+
+Keep deterministic continuation and bifurcation analysis deferred: no autonomous
+deterministic transition map has been validated. The next useful specification
+would test state sufficiency and learned forecasts against stronger persistence
+and configuration-specific baselines, including generalization within each
+market configuration. Any permanent compression or reduced-agent simulation
+needs a new validation design; the present one-off intervention cannot establish
+it. Specify and approve that follow-up before implementation. Task 7's
+multifractal scope is unchanged, and integration PR #3 remains draft for the
+combined user validation.
+
+![Held-out fidelity versus retained portfolio groups](experiments/figures/task5_20261030/fidelity_profiles.png)
+
+![Market states learned from current and lagged observations](experiments/figures/task5_20261030/discovered_structure.png)
+
 ## Hard-rule deterministic reduction: task 4 (2026-10-27)
 
 Implemented on `feat/research-hard-reduction`, branched from integration commit
@@ -143,6 +397,10 @@ explain ABM liquidity requires further closure validation. The queue-retaining
 companion is not a fixed-size continuation target; use the day map on its
 conserved-resource surface for any subsequent regularized-map work. No smoothing,
 continuation, Lyapunov calculation, or multifractal analysis was added here.
+
+The 2026-10-30 Task 5 revision supersedes this original smoothing handoff with
+portfolio compression and data-driven discovery; the comparison above remains
+the recorded hard-reduction baseline.
 
 ![Fresh-cohort trading continuity](experiments/figures/task4_20261027/continuity.png)
 

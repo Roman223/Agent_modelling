@@ -156,6 +156,122 @@ anchors. Representative [volatility](experiments/figures/task3_20261027/log_retu
 and [terminal-stall](experiments/figures/task3_20261027/terminal_stall_map.png) maps
 are retained in Git; the full 24-figure set and compact data remain under `results/`.
 
+## Portfolio detail and structure discovery (task 5)
+
+Task 5 tests how much individual portfolio information the full ABM needs.
+It compresses portfolios **once at saved checkpoints**, then resumes ordinary
+individual trading. The population, independent decisions, ordered book, ownership,
+and accepted-price memory remain. This is an experiment on initial information;
+it does not yet provide a permanently reduced simulator or a speedup. No governing
+market equations are derived, and the observed structures are not chaos claims.
+
+`src.market_checkpoints` provides `MarketCheckpoint`, `run_checkpointed`,
+`continue_checkpoint`, and gzip checkpoint I/O. Snapshots preserve stable trader
+indices, ordered queues, asset/trader state and histories, elapsed days, and the
+NumPy RNG. NumPy scalar types in transition inputs are preserved: converting them
+to Python floats changes Python 3.12 summation rounding. Historical wealth values
+are stored as ordinary floats because they are not transition inputs. Research
+entry points restore the caller's RNG. Evolution and circuit-breaker checkpoints
+are rejected; the ordinary APIs and schema-1 bundles remain unchanged.
+
+`src.heterogeneity.compress_checkpoint` accepts a `CompressionConfig(level=...)`.
+Levels are 1, 2, 4, 8, 16, or `full` by default. Within each strategy, Ward clustering
+uses cash and shares divided by the initial per-agent endowments. Nested tree cuts
+preserve joint portfolio information. Inactive/empty portfolios stay unchanged.
+Cluster cash is averaged with a floating-point residual correction; integer shares
+are distributed as floor/ceiling values, with extra shares assigned by descending
+original holdings and then stable index. Hence a cluster may retain two share
+profiles; requested and realized counts are reported separately. Queues and their
+owners remain unchanged. No compression is performed at `full`.
+
+Retained dispersion is the ratio of summed squared normalized deviations after
+and before compression, separately by strategy; zero original dispersion is
+undefined. Joint Wasserstein-1 error uses SciPy's minimum-cost assignment between
+equal-sized, uniformly weighted individual portfolio samples. This is the exact
+empirical transport distance and avoids a separate LP solver. Compression records
+also retain memberships, assignment error, and changes in resource availability.
+
+```bash
+.venv/bin/python experiments/run_heterogeneity.py generate results/task5_heterogeneity_20261030 \
+  --atlas results/task3_atlas_20261027
+.venv/bin/python experiments/run_heterogeneity.py run results/task5_heterogeneity_20261030 \
+  --workers 2 --minutes 120 > results/task5_heterogeneity_20261030/execution.log 2>&1
+.venv/bin/python experiments/run_heterogeneity.py status results/task5_heterogeneity_20261030
+.venv/bin/python experiments/run_heterogeneity.py resume results/task5_heterogeneity_20261030 \
+  --workers 2 --minutes 120 >> results/task5_heterogeneity_20261030/execution.log 2>&1
+.venv/bin/python experiments/run_heterogeneity.py render results/task5_heterogeneity_20261030
+.venv/bin/python tests/test_heterogeneity.py
+```
+
+Run long commands in a background terminal session. The default pilot selects five
+stored atlas configurations: reference variants 0/6/7 and liquidity variants 6/7.
+It uses development seeds 300–309 and held-out seeds 310–359, 2,000-day reference
+runs, checkpoints after 100/500/1,000 completed days, and 1,000-day continuations.
+There are 300 references and 900 checkpoint jobs containing up to 5,400
+continuations; identical compressed snapshots are deduplicated within each job.
+Every full-detail continuation must match reference daily outputs and its final
+physical-state/RNG digest before that job can be published. Equal starting RNG
+states do not imply aligned future shocks after decisions consume different draws.
+
+Artifacts and the two phase ledgers are separate from existing experiment/bundle
+formats. Checkpoints are deterministic gzip JSON with typed numerical scalars;
+daily and thinned feature arrays use compressed NPZ without pickle. Completion
+manifests validate every payload. Resume verifies source/runtime and input identity;
+corrupted outputs require `--retry-failed`. Each phase benchmarks serially before
+using two workers. Workers have address-space and file-size limits; the study
+retains the 6 GiB memory, 5 GiB output, 10 GiB free-disk, six-worker maximum, and
+120-minute batch limits. Repeated bounded resumes complete the fixed pilot.
+
+Fidelity is assessed at 100 and 1,000 future days. Primary tolerances are 10
+percentage points in terminal-stall frequency; Wasserstein distance 0.05 in
+no-trade fractions and each strategy's final resource fractions; and `log(1.2)`
+in log(1 + mean volume), log(return volatility + 0.0001), and cumulative log return.
+Offsets define comparison scales; no jitter is added. Terminal stalls use 100
+future no-trade days, without borrowing pre-checkpoint history. Secondary outputs
+include 1/20-day diagnostics, return quantiles, positive-volume volatility, and
+within-strategy/same-owner volume. Full-ABM split-seed comparisons describe sampling
+variability and do not define equivalence tolerances.
+
+The predeclared criteria use 2,000 matched seed-bundle bootstrap samples and
+conservative paired-binomial stall bounds, including zero-disagreement cases.
+Results are within tolerance, outside tolerance, or inconclusive. A candidate
+minimum level must pass along with every finer tested level. These are exploratory
+per-cell/horizon intervals, not simultaneous certification across the entire study.
+
+Structure discovery fits scaling, PCA (2/4/8 components), and K-means (2–6 clusters,
+20 initializations) on development reference runs only. Clusters are selected by
+development silhouette score. Current features are compared with lags of 1/5/20
+trading days; rows are sampled every tenth day after a 20-day lag window. Portfolio
+quantiles, resource availability, book summaries, trading activity, and accepted-price
+signals form the features. Validation covers reconstruction, seed-bootstrap cluster
+stability, occupancy, and subsequent 20-day outcomes. Compressed continuations are
+projected using those frozen reference-trained models. The report contains numeric
+records, transform arrays, and PNG/PDF figures, with independently recorded rendering
+provenance. See VALIDATION.md for completed checks and pilot findings.
+
+The current feature vector already includes accepted-price memory signals and the
+no-trade streak. The lagged variant appends earlier feature vectors to test whether
+they contain useful additional information; it leaves the trader decision rules
+unchanged. Cluster stability is conditional on the frozen development scaler/PCA;
+five seed-bootstrap repetitions refit K-means, not the complete representation pipeline.
+Reconstruction errors describe each representation's own feature space. The
+subsequent 20-day targets are shared across modes and provide the direct comparison
+of predictive usefulness. The forecast baseline is the development cohort's global
+mean; stronger forecasting baselines remain a subsequent validation step.
+
+The [completed pilot and validation record](VALIDATION.md#retained-individuality-and-structure-discovery-task-5-2026-10-30)
+contains 300 references and 5,400 continuations across 900 checkpoint jobs.
+All full-detail continuations reproduced their references exactly. Eleven of
+30 tested conditions have candidate compression thresholds; the pilot does not
+support a universal cutoff. Both representations find five stable clusters,
+with no consistent predictive advantage from adding lags. These findings concern
+one-off portfolio information, while all individual trading remains in place.
+
+The recorded pilot used four workers after an initial two-worker benchmark and
+user approval; CLI defaults remain two. Its execution source is `6db78d5`.
+Historical resume requires that source/runtime; the current renderer can read
+the completed artifacts with separately recorded rendering provenance.
+
 ## Hard-rule deterministic reduction (task 4)
 
 The reduction is an explicit research variant, separate from the unchanged

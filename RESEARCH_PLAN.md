@@ -24,7 +24,7 @@ PR focused on that task's changes. Use merge commits to retain the task history.
 | 2 | `feat/research-experiment-runner` | Resumable experiments, compact artifacts, provenance and resource limits | Merged via [PR #5](https://github.com/Roman223/Agent_modelling/pull/5) |
 | 3 | `feat/research-parameter-atlas` | One-dimensional sweeps and coarse two-dimensional parameter maps | Merged via [PR #6](https://github.com/Roman223/Agent_modelling/pull/6) |
 | 4 | `feat/research-hard-reduction` | Hard-rule deterministic reduction and comparisons with controlled ABM runs | Merged via [PR #7](https://github.com/Roman223/Agent_modelling/pull/7) |
-| 5 | `feat/research-heterogeneity-study` | Representative portfolios, minimum retained individuality for ABM fidelity, and data-driven structure discovery | Pending; scope revised 2026-10-30 |
+| 5 | `feat/research-heterogeneity-study` | Representative portfolios, minimum retained individuality for ABM fidelity, and data-driven structure discovery | Complete and validated; [PR #8](https://github.com/Roman223/Agent_modelling/pull/8) awaiting integration |
 | 6 | `feat/research-bifurcation-analysis` | Reassess the appropriate dynamics analysis after task 5; deterministic continuation/stability only if justified | Deferred pending task 5 findings |
 | 7 | `feat/research-multifractal-analysis` | MF-DFA, surrogate/GARCH controls, validation and pilot results | Pending |
 
@@ -153,7 +153,8 @@ values. Preserve resource state and accepted-price memory in the reduction, and
 test trading continuity as well as prices. These are comparison anchors, not
 verified bifurcations or deterministic attractors. Create task 4 from the updated
 integration branch, including the PR #6 merge and this handoff documentation.
-The task 4 handoff below records the next implementation. Tasks 5–7 remain unimplemented.
+The task 4 and task 5 handoffs below record the subsequent implementations.
+Task 6 remains deferred and task 7 is pending.
 
 ## Task 4 handoff
 
@@ -189,17 +190,40 @@ The original handoff proposed a smoothing study. The approved revision below
 supersedes that next step while preserving these results. Further closure
 validation is needed before interpreting reduced attractors as ABM explanations.
 Keep the persistent companion outside fixed-size continuation; the day map has
-two conserved-resource constraints. Create the revised task 5 branch from the
-updated integration branch, including the PR #7 merge and this scope revision.
+two conserved-resource constraints. Task 5 was branched from integration commit
+`abc1324`, including the PR #7 merge and this scope revision.
 
 ## Revised task 5: retained individuality and structure discovery (2026-10-30)
 
 The user approved studying representative portfolios and discovering structure
 from simulation data, with the full original ABM as the first comparison target.
 Do not write direct governing market equations. This replaces the original
-regularized-companion task; it is a research scope revision, not an implemented
-model or a completed experiment. Task 4 passed implementation checks, but its
+regularized-companion task. Its implementation and fixed pilot are now complete;
+see the Task 5 handoff below. Task 4 passed implementation checks, but its
 scientific fidelity and the combined project remain subject to user review.
+
+### Approved implementation protocol
+
+The implementation plan narrows the first pilot to **one-off checkpoint
+compression**, preserving all individual traders and their independent trading.
+This measures how much initial portfolio information is needed over a specified
+horizon; it does not establish a permanently compressed model or a speedup.
+
+Use reference variants 0/6/7 and liquidity variants 6/7; development seeds 300–309
+and held-out seeds 310–359; 2,000-day references; checkpoints after 100/500/1,000
+completed trading days; and 1,000-day continuations. Report horizons 1/20/100/1,000,
+with threshold assessment at 100/1,000. A full-detail continuation must reproduce
+the uninterrupted ABM exactly. Collect bounded observations and freeze the
+moderate tolerances before held-out analysis: 10 percentage points for stalls,
+5 for inactivity/resource fractions, and log(1.2) distribution distances for
+volume, volatility, and cumulative returns under the documented transforms.
+
+Group portfolios by nested Ward cuts; conserve cash and integer shares, record
+realized profiles after integer balancing, and retain original order ownership.
+Fit current/lagged PCA and clustering on development runs only. Keep uncertainty
+and inconclusive outcomes explicit. Finish the fixed pilot through bounded,
+resumable batches under the existing machine caps. The README specifies the
+interfaces, exact transformations, and workflow.
 
 ### Research question and controlled comparison
 
@@ -277,3 +301,35 @@ previous smooth-map continuation route is not automatic; smoothing remains
 deferred unless the evidence supports a suitable model. Task 7's multifractal
 scope is unchanged and does not require a successful smooth reduction. Keep the
 integration PR draft and retain final user validation before merging into `main`.
+
+## Task 5 handoff
+
+Task 5 implements exact market checkpoints, conservative one-off portfolio
+compression, retained-detail measures, a bounded resumable study, and current/
+lagged structure discovery. Simulation execution is reproducible at `6db78d5`;
+later plotting changes are separately fingerprinted. All 96 focused checks and
+25 default legacy cases passed. The fixed pilot completed 300 references and
+5,400 continuations across 900 checkpoint jobs. All full-detail checks were exact.
+Execution switched from two to four workers with user approval and stayed within
+the existing resource limits. Detailed evidence is in
+[VALIDATION.md](VALIDATION.md#retained-individuality-and-structure-discovery-task-5-2026-10-30).
+
+The pilot supports 11 candidate thresholds across 30 held-out conditions, not a
+universal individuality cutoff. Ten candidates concern a 100-day horizon. The
+remaining candidate uses one portfolio group per strategy in the original-forcing
+ABM after checkpoint 1,000, evaluated for the following 1,000 days. Most other
+original-forcing comparisons are inconclusive; the controlled configurations
+show substantial longer-horizon disagreement. Retaining approximately 99.9% of
+portfolio dispersion at 16 groups does not guarantee fidelity in every case.
+All traders and individual trading remain, so this is not a permanent reduced
+simulator or a demonstrated speedup.
+
+Current and lagged representations each find five stable market-state clusters
+and improve simple future-outcome predictions over a global-mean baseline.
+Additional lags have no consistent advantage across the three targets. These
+results support further state/prediction validation, but no autonomous transition
+map has been validated. Keep Task 6's deterministic continuation route deferred.
+Its next specification should assess stronger forecasting baselines and
+within-configuration generalization before claiming a closed reduced model;
+approve that specification before implementation. Task 7 is unchanged. Keep
+integration PR #3 draft until the combined work receives final user validation.

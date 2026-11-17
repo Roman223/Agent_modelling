@@ -15,6 +15,8 @@ def main():
     generate.add_argument('directory', type=Path)
     generate.add_argument('--atlas', type=Path, default=Path('results/task3_atlas_20261027'))
     generate.add_argument('--indices', type=Path, default=Path('data'))
+    generate.add_argument('--reuse-simulations', type=Path,
+                          help='Copy and verify a completed simulation directory with the exact same specification')
     for name in ('study', 'analyze'):
         command = sub.add_parser(name)
         command.add_argument('directory', type=Path)
@@ -50,7 +52,8 @@ def main():
     if args.command == '_simulation':
         return simulation_worker(args.request)
     if args.command == 'generate':
-        manifest = generate_study(args.directory, args.atlas, indices=args.indices)
+        manifest = generate_study(args.directory, args.atlas, indices=args.indices,
+                                  reuse_simulations=args.reuse_simulations)
         print(json.dumps({'analysis_id': manifest['analysis_id'], 'simulations': 15, 'indices': 5}))
         return 0
     if args.command == 'validate-estimators':

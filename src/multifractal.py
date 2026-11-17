@@ -22,6 +22,7 @@ SETTINGS = {
     'replicates': 99, 'chunk_size': 25, 'analysis_seed': 20261117,
     'iaaft_iterations': 1000, 'iaaft_max_spectral_error': 0.01,
     'garch_burn_in': 2048, 'garch_max_iterations': 2000,
+    'garch_stationarity_margin': 1e-8,
     'simulation_lengths': [1024, 2048, 4096, 8192], 'index_lengths': [1024, 2048],
     'primary_length': 2048,
     'window': 'end-aligned daily log returns, including no-trade days',
@@ -46,7 +47,8 @@ def validate_settings(settings):
             raise ValueError(f'{name} must be a positive integer')
     if settings['chunk_size'] > 25:
         raise ValueError('At most 25 control realizations per chunk')
-    for name in ('scale_octave_step', 'weak_r_squared', 'iaaft_max_spectral_error'):
+    for name in ('scale_octave_step', 'weak_r_squared', 'iaaft_max_spectral_error',
+                 'garch_stationarity_margin'):
         if not np.isfinite(settings[name]) or not 0 < settings[name] <= 1:
             raise ValueError(f'Invalid {name}')
     for name in ('simulation_lengths', 'index_lengths'):

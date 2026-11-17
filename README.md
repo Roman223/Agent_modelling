@@ -486,7 +486,9 @@ runtime; this change does not bypass provenance checks.
 
 These controls complete task 1 of the research plan. The task 2 experiment runner
 is described below; the task 3 atlas and task 4 hard reduction are described above.
-Smoothing, bifurcation analysis, and multifractal analysis remain later tasks.
+Smoothing and deterministic bifurcation analysis remain deferred pending a
+validated reduced model. The multifractal toolkit is documented under
+[Task 7](#multifractal-scaling-study-task-7).
 The branch and PR merge sequence is tracked in [RESEARCH_PLAN.md](RESEARCH_PLAN.md).
 
 ## Resumable research experiments
@@ -984,8 +986,10 @@ Each window has 99 controls per family, reused across detrending settings. IAAFT
 preserves the exact sample amplitudes, stops at stable ranks or 1,000 iterations,
 retains its best spectrum match, and flags relative Fourier-amplitude errors above
 1%. GARCH uses constant mean, GARCH(1,1), Student-t innovations, percentage log-return
-units, and 2,048 simulated burn-in steps. Convergence, admissibility and stationarity
-are required; unsuccessful fits remain explicitly unavailable. Generators derive
+units, and 2,048 simulated burn-in steps. Convergence, admissibility and persistence
+strictly below 1 minus 1e-8 are required; this numerical margin rejects fits at the
+stationarity boundary within rounding/optimizer precision. Unsuccessful fits
+remain explicitly unavailable. Generators derive
 from base seed 20261117 and hashed source/window/family/replicate identities. They
 do not consume simulation RNG draws. Finite weak-scaling control estimates remain
 in the null distribution; incomplete control ensembles remain inconclusive.
@@ -1015,6 +1019,15 @@ batches until the fixed work finishes, stopping on signals or other failures. Us
 batch per analysis phase without rerunning simulations; `validate-estimators`
 performs the known-answer checks; `render` regenerates figures and tables from
 complete records. No full study is launched merely by importing a module.
+
+For a revised analysis of already completed simulations, generate a new study with
+`--reuse-simulations PREVIOUS_STUDY/simulation`. This verifies the exact simulation
+specification, run inventory, source identity and every artifact hash, then copies
+the completed inputs under the new study's disk budget. Their historical execution
+identity is preserved; the new analysis has its own immutable identity. `study`
+then skips simulation and runs validation, analysis and reporting. Partial or
+different simulation designs cannot be reused this way. Original studies remain
+unchanged, and strict provenance still applies when resuming either version.
 
 ```python
 from src.multifractal import analyze_series

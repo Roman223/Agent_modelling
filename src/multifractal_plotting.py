@@ -139,6 +139,9 @@ def plot_hurst(primary, settings):
         part = row['observed']['analysis'].get('orders', {}).get('1')
         if part:
             ax.plot(q, np.array(part['fit']['h'], float), 'o-', color='black', ms=3, label='Observed')
+            if part['fit']['status'] != 'ok':
+                ax.text(.03, .03, part['fit']['status'].replace('_', ' '),
+                        transform=ax.transAxes, fontsize=7, color='#8a3a28')
             for family in FAMILIES:
                 comparison = row['controls'][family]['1']['fit']
                 bands = comparison['h_quantiles']
@@ -185,7 +188,7 @@ def plot_contrasts(primary):
             part = row['observed']['analysis'].get('orders', {}).get('1')
             value = part['fit'][metric] if part else None
             if value is not None:
-                ax.plot(value, i, 'ko', ms=5, label='Observed' if i == 0 else None)
+                ax.plot(value, i, 'ko', ms=5, label='Observed')
             else:
                 ax.text(.98, i, 'undefined', transform=ax.get_yaxis_transform(), ha='right', fontsize=7, color='#888888')
             for offset, family in zip((-.18, 0, .18), FAMILIES):
@@ -193,11 +196,14 @@ def plot_contrasts(primary):
                 if comparison['status'] == 'complete':
                     lo, median, hi = comparison['quantiles']
                     ax.errorbar(median, i+offset, xerr=[[median-lo], [hi-median]], fmt='|',
-                                color=COLORS[family], capsize=2, label=family if i == 0 else None)
+                                color=COLORS[family], capsize=2, label=family)
         ax.set_yticks(range(len(primary)), [title_for(r) for r in primary], fontsize=8)
         ax.invert_yaxis()
         ax.set_xlabel(label)
         ax.grid(axis='x', alpha=.2)
+    handles, labels = axes[0].get_legend_handles_labels()
+    unique = dict(zip(labels, handles))
+    axes[0].legend(unique.values(), unique.keys(), loc='best', fontsize=8)
     count = primary[0]['controls']['shuffled']['1']['fit']['expected']
     length = primary[0]['window']['length']
     fig.suptitle(f'Observed statistics and complete {count}-realization control intervals — DFA1, N={length:,}')
@@ -237,6 +243,28 @@ def number(value):
     return '—' if value is None else f'{value:.4f}'
 
 
+def primary_groups(primary):
+    groups = defaultdict(list)
+    for row in primary:
+        if row['window']['kind'] == 'simulation':
+            groups[row['window']['label']].append(row)
+    summaries = []
+    for label, group in groups.items():
+        summary = {'label': label, 'expected': len(group),
+                   'seeds': [r['window']['seed'] for r in group], 'statistics': {}}
+        for metric in ('delta_h', 'spectrum_width'):
+            values = [r['observed']['analysis'].get('orders', {}).get('1', {}).get('fit', {}).get(metric)
+                      for r in group]
+            values = [v for v in values if v is not None and np.isfinite(v)]
+            summary['statistics'][metric] = {
+                'valid': len(values),
+                'median': float(np.median(values)) if values else None,
+                'minimum': float(np.min(values)) if values else None,
+                'maximum': float(np.max(values)) if values else None}
+        summaries.append(summary)
+    return summaries
+
+
 def findings_markdown(manifest, rows):
     primary = [r for r in rows if r['window']['length'] == manifest['settings']['primary_length']]
     lines = ['# Multifractal pilot findings', '',
@@ -258,6 +286,16 @@ def findings_markdown(manifest, rows):
         lines.append(f'| {w["label"]} | {w["seed"] if w["seed"] is not None else "—"} | '
                      f'{number(a.get("return_sd"))} | {number(no_trade)} | '
                      f'{number(fit.get("delta_h"))} | {number(fit.get("spectrum_width"))} | {fit.get("status", a["status"])} |')
+    lines += ['', '## Dispersion across simulation seeds', '',
+              'Medians and ranges below use only finite primary DFA1 estimates. '
+              'Coverage is shown explicitly; these ranges are descriptive, not population confidence intervals.', '',
+              '| Configuration | Valid/expected | Median Δh | Δh range | Median Δα | Δα range |',
+              '| --- | --- | --- | --- | --- | --- |']
+    for group in primary_groups(primary):
+        h, a = [group['statistics'][name] for name in ('delta_h', 'spectrum_width')]
+        lines.append(f'| {group["label"]} | {h["valid"]}/{group["expected"]} | '
+                     f'{number(h["median"])} | [{number(h["minimum"])}, {number(h["maximum"])}] | '
+                     f'{number(a["median"])} | [{number(a["minimum"])}, {number(a["maximum"])}] |')
     lines += ['', '## Control comparisons', '',
               'Intervals below are 95% control reference intervals for Δh, not confidence intervals '
               'for the ABM population. Incomplete ensembles are retained as inconclusive. '
@@ -276,6 +314,7 @@ def findings_markdown(manifest, rows):
     lines += ['', '## Interpretation and limitations', '',
               '- Report each seed separately; three seeds provide exploratory dispersion, not a precise population interval.',
               '- Nested windows share observations. Their agreement is a sensitivity check, not independent replication.',
+              '- The short fitted scale ranges make asymptotic scaling uncertain even when R-squared is high.',
               '- The two detrending orders, full scale grids, and common 16–128 scale fits are retained in the tables and figures.',
               '- Undefined negative moments or full spectra are outcomes of zero or unresolved segment fluctuations. '
               'Inactive days were retained; no jitter or segment stitching was used.',
@@ -310,8 +349,10 @@ def render_study(root, *, limits=None, locked=False):
     output.mkdir(parents=True, exist_ok=True)
     if disk_guard(root, limits, reserved=128*MIB):
         raise ValueError('Study resource budget prevents rendering')
+    primary = [r for r in rows if r['window']['length'] == manifest['settings']['primary_length']]
     summary = {'analysis_id': manifest['analysis_id'], 'settings': manifest['settings'],
                'windows': rows, 'operational_failures': 0,
+               'primary_simulation_groups': primary_groups(primary),
                'observed_status_counts': dict(Counter(r['observed']['analysis']['status'] for r in rows))}
     atomic_json(output/'summary.json', json_safe(summary))
     numeric = {'label': np.array([r['window']['label'] for r in rows]),
@@ -328,7 +369,6 @@ def render_study(root, *, limits=None, locked=False):
                 numeric[f'order{order}_{fit_name}_{metric}'] = np.asarray(values, dtype=float)
     np.savez_compressed(output/'tables.npz', **numeric)
     (output/'findings.md').write_text(findings_markdown(manifest, rows), encoding='utf-8')
-    primary = [r for r in rows if r['window']['length'] == manifest['settings']['primary_length']]
     for name, builder in (
             ('scaling_curves', lambda: plot_scaling(primary, manifest['settings'])),
             ('hurst_curves', lambda: plot_hurst(primary, manifest['settings'])),

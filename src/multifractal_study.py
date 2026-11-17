@@ -21,7 +21,8 @@ from packaging.utils import canonicalize_name
 
 from src.atlas_runner import atomic_json, manifest_at
 from src.experiment_artifacts import (ROOT, digest, execution_fingerprint, file_hash,
-                                      read_compact, read_json, write_json, provenance)
+                                      read_compact, read_json, write_json, provenance, validate_compact,
+                                      expand_spec)
 from src.experiments import (Limits, GIB, MIB, _remove_stage, _terminate, directory_bytes,
                              disk_guard, experiment_lock,
                              memory_available, now, resident_bytes, status)
@@ -59,8 +60,23 @@ def analysis_fingerprint(settings=None):
             'source_sha256': {p: file_hash(ROOT / p) for p in paths}}
 
 
+def verified_simulations(path, specification):
+    path = Path(path).resolve()
+    manifest = manifest_at(path)
+    if manifest['specification'] != specification:
+        raise ValueError('Reused simulation specification differs from the study')
+    execution = manifest['provenance']['execution']
+    if expand_spec(specification, execution) != manifest['runs']:
+        raise ValueError('Reused simulation run inventory differs from the specification')
+    for run in manifest['runs']:
+        validate_compact(path/'runs'/run['run_id'], expected_run=run,
+                         fingerprint=execution)
+    return {'source': str(path), 'manifest_sha256': file_hash(path/'manifest.json'),
+            'runs': len(manifest['runs']), 'bytes': directory_bytes(path)}
+
+
 def generate_study(root, atlas, *, indices=None, seeds=(200, 201, 202), days=10240,
-                   burn_in=2048, settings=None):
+                   burn_in=2048, settings=None, reuse_simulations=None):
     settings = deepcopy(SETTINGS if settings is None else settings)
     validate_settings(settings)
     if (not seeds or len(set(seeds)) != len(seeds)
@@ -98,6 +114,11 @@ def generate_study(root, atlas, *, indices=None, seeds=(200, 201, 202), days=102
              for name, scenario in configurations.items()]
     spec = {'schema_version': 1, 'name': 'task7-multifractal-pilot', 'days': days,
             'burn_in': burn_in, 'cells': cells}
+    reused = verified_simulations(reuse_simulations, spec) if reuse_simulations is not None else None
+    if reused:
+        if reused['bytes'] > 4*GIB or shutil.disk_usage(ancestor).free < 10*GIB+reused['bytes']+4*MIB:
+            raise ValueError('Reused simulation copy exceeds the study disk budget')
+        manifest['reused_simulation'] = reused
     root.mkdir(parents=True, exist_ok=False)
     (root / 'inputs').mkdir()
     for item in inputs:
@@ -106,6 +127,11 @@ def generate_study(root, atlas, *, indices=None, seeds=(200, 201, 202), days=102
         if file_hash(destination) != item['sha256']:
             raise ValueError('Index changed while snapshotting')
     write_json(root / 'spec.json', spec)
+    if reused:
+        shutil.copytree(reuse_simulations, root/'simulation')
+        copied = verified_simulations(root/'simulation', spec)
+        if copied['manifest_sha256'] != reused['manifest_sha256']:
+            raise ValueError('Reused simulation manifest changed during copying')
     manifest['spec_sha256'] = file_hash(root / 'spec.json')
     write_json(root / 'manifest.json', manifest)
     write_json(root / 'manifest.sha256.json', {'sha256': digest(manifest)})
@@ -122,6 +148,9 @@ def load_study(root, *, current=False):
         raise ValueError('Analysis identity mismatch')
     if file_hash(root / 'spec.json') != manifest['spec_sha256']:
         raise ValueError('Simulation specification changed')
+    if ('reused_simulation' in manifest and file_hash(root/'simulation/manifest.json')
+            != manifest['reused_simulation']['manifest_sha256']):
+        raise ValueError('Reused simulation manifest changed')
     for item in manifest['indices']:
         path = root / 'inputs' / item['filename']
         if path.is_symlink() or file_hash(path) != item['sha256']:
@@ -455,6 +484,9 @@ def complete_study(root, *, limits=None, retry_failed=False):
             raise ValueError('Known-answer estimator validation failed')
         simulation = root / 'simulation'
         while True:
+            if 'reused_simulation' in manifest:
+                verified_simulations(simulation, read_json(root/'spec.json'))
+                break
             if disk_guard(root, limits, reserved=128*MIB):
                 raise ValueError('Study disk budget prevents simulation')
             outside = directory_bytes(root) - (directory_bytes(simulation) if simulation.exists() else 0)

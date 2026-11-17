@@ -29,10 +29,10 @@ from src.experiment_artifacts import digest, read_json
 from src.experiments import Limits
 from src.index_data import load_chronological_index, load_index
 from src.multifractal import SETTINGS, analyze_series, log_fluctuations, scales_for, validate_settings
-from src.multifractal_controls import control, generator, iaaft
+from src.multifractal_controls import admissible_garch, control, generator, iaaft
 from src.multifractal_study import (analysis_directory, cached_record, generate_study, jobs_for,
                                     load_study, load_window, phase_jobs, result_path, study_status,
-                                    windows_for)
+                                    windows_for, complete_study, verified_simulations)
 from src.multifractal_plotting import collect_study, control_summary
 from src.multifractal_validation import validate_estimators
 
@@ -43,6 +43,15 @@ def same_rng(test, before, after):
 
 
 class NumericalTests(unittest.TestCase):
+    def test_garch_stationarity_boundary(self):
+        parameters = {'mu': 0., 'omega': .1, 'alpha[1]': .1, 'beta[1]': .8, 'nu': 8.}
+        self.assertTrue(admissible_garch(parameters))
+        for persistence in (1., np.nextafter(1., 0.), 1-1e-10, 1.01):
+            parameters.update({'alpha[1]': 0., 'beta[1]': persistence})
+            self.assertFalse(admissible_garch(parameters), persistence)
+        parameters.update({'beta[1]': .8, 'nu': 2.})
+        self.assertFalse(admissible_garch(parameters))
+
     def test_known_answers_and_rng(self):
         before = np.random.get_state()
         result = validate_estimators()
@@ -247,8 +256,31 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(len(list(report.glob('*.png'))), 5)
         self.assertEqual(len(list(report.glob('*.pdf'))), 5)
         self.assertEqual(read_json(report/'summary.json')['operational_failures'], 0)
+        groups = read_json(report/'summary.json')['primary_simulation_groups']
+        self.assertEqual(len(groups), 5)
+        self.assertTrue(all(group['expected'] == 1 for group in groups))
         with np.load(report/'tables.npz', allow_pickle=False) as arrays:
             self.assertEqual(len(arrays['length']), 10)
+
+    def test_verified_simulation_reuse(self):
+        root = Path(self.temporary.name)/'reused'
+        manifest = generate_study(root, ROOT/'results/task3_atlas_20261027', seeds=(900,),
+                                  days=1024, burn_in=0, settings=self.settings,
+                                  reuse_simulations=self.root/'simulation')
+        self.assertEqual(manifest['reused_simulation']['runs'], 5)
+        load_study(root, current=True)
+        with patch('src.multifractal_study.launch_simulation') as launch:
+            with patch('src.multifractal_study.validate_study', return_value={'passed': True}):
+                with patch('src.multifractal_study.analyze_study', return_value=2):
+                    self.assertEqual(complete_study(root), 2)
+            launch.assert_not_called()
+        with self.assertRaisesRegex(ValueError, 'specification differs'):
+            generate_study(Path(self.temporary.name)/'wrong-spec', ROOT/'results/task3_atlas_20261027',
+                           seeds=(900,), days=2048, burn_in=0, settings=self.settings,
+                           reuse_simulations=self.root/'simulation')
+        next((root/'simulation/runs').glob('*/daily.npz')).write_bytes(b'corrupt')
+        with self.assertRaisesRegex(ValueError, 'Corrupt artifact'):
+            verified_simulations(root/'simulation', read_json(root/'spec.json'))
 
 class ParentDeathTests(unittest.TestCase):
     def setUp(self):

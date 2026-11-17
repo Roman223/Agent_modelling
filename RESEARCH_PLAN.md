@@ -370,7 +370,9 @@ per window. Use separate hash-derived generators with base analysis seed 2026111
 IAAFT preserves amplitudes exactly, allows at most 1,000 iterations, and records
 rank stability and relative Fourier-amplitude error; errors above 1% invalidate
 that control comparison. Require converged, stationary GARCH fits with finite
-admissible parameters and degrees of freedom above two; discard 2,048 simulated
+admissible parameters and degrees of freedom above two; require persistence below
+1 minus 1e-8 so a boundary solution cannot pass through floating-point rounding.
+Discard 2,048 simulated
 GARCH burn-in steps. Keep unavailable fits explicit. Reuse control realizations
 across detrending settings. Retain finite weak-scaling null estimates, and report
 incomplete control ensembles as inconclusive rather than replacing realizations.

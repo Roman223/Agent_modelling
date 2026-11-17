@@ -49,6 +49,15 @@ def iaaft(values, rng, settings=None):
                   'rank_stable': stable, 'exact_amplitudes': bool(np.array_equal(np.sort(best), sorted_x))}
 
 
+def admissible_garch(parameters, settings=None):
+    settings = SETTINGS if settings is None else settings
+    p = parameters
+    return bool(np.isfinite(list(p.values())).all() and p['omega'] > 0
+                and p['alpha[1]'] >= 0 and p['beta[1]'] >= 0
+                and p['alpha[1]'] + p['beta[1]'] < 1-settings['garch_stationarity_margin']
+                and p['nu'] > 2)
+
+
 def fit_garch(values, settings=None):
     settings = SETTINGS if settings is None else settings
     x = np.asarray(values, dtype=float)
@@ -63,12 +72,12 @@ def fit_garch(values, settings=None):
                                  disp='off', update_freq=0,
                                  options={'maxiter': settings['garch_max_iterations'], 'ftol': 1e-8})
             params = {str(k): float(v) for k, v in fit.params.items()}
-            admissible = (np.isfinite(list(params.values())).all() and params['omega'] > 0
-                          and params['alpha[1]'] >= 0 and params['beta[1]'] >= 0
-                          and params['alpha[1]'] + params['beta[1]'] < 1 and params['nu'] > 2)
+            admissible = admissible_garch(params, settings)
             result = {'status': 'ok' if fit.convergence_flag == 0 and admissible else 'unavailable_fit',
                       'parameters': params, 'parameter_order': list(fit.params.index),
                       'convergence_flag': int(fit.convergence_flag), 'admissible': bool(admissible),
+                      'persistence': params['alpha[1]'] + params['beta[1]'],
+                      'stationarity_margin': settings['garch_stationarity_margin'],
                       'units': 'percentage log returns', 'log_likelihood': float(fit.loglikelihood)}
         except (ValueError, RuntimeError, FloatingPointError, np.linalg.LinAlgError) as error:
             result = {'status': 'unavailable_fit', 'reason': f'{type(error).__name__}: {error}'}

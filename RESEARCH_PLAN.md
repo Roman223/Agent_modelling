@@ -9,15 +9,16 @@ analysis. Deterministic bifurcation verification is conditional on finding a
 suitable, validated model. Basin/boundary geometry (research phase 4) is deferred.
 The approved 2026-10-30 revision replaces task 5's smoothing study with a study
 of retained individual differences; see the revised scope below. The approved
-2026-11-17 priority revision puts Task 7 next, including all five existing market
-indices. Complete the fixed multifractal pilot before reconsidering Task 6.
+2026-11-17 priority revision put Task 7 next, including all five existing market
+indices. Its fixed pilot is now validated; Task 6 still requires a separate
+specification supported by the findings.
 
 ## Sequential PRs
 
 Execution task numbers below are distinct from the research phase numbers.
 Each task has its own branch and PR targeting `research/emergent-dynamics`.
-Tasks 1–5 are integrated; the next execution order is Task 7, then a separately
-specified Task 6 if justified. Create each subsequent task branch from
+Tasks 1–5 are integrated and Task 7 is validated for integration. Task 6 remains
+separately specified if justified. Create each subsequent task branch from
 the updated integration branch after its predecessor has merged; this keeps its
 PR focused on that task's changes. Use merge commits to retain the task history.
 
@@ -28,7 +29,7 @@ PR focused on that task's changes. Use merge commits to retain the task history.
 | 3 | `feat/research-parameter-atlas` | One-dimensional sweeps and coarse two-dimensional parameter maps | Merged via [PR #6](https://github.com/Roman223/Agent_modelling/pull/6) |
 | 4 | `feat/research-hard-reduction` | Hard-rule deterministic reduction and comparisons with controlled ABM runs | Merged via [PR #7](https://github.com/Roman223/Agent_modelling/pull/7) |
 | 5 | `feat/research-heterogeneity-study` | Representative portfolios, minimum retained individuality for ABM fidelity, and data-driven structure discovery | Merged via [PR #8](https://github.com/Roman223/Agent_modelling/pull/8) |
-| 7 | `feat/research-multifractal-analysis` | MF-DFA, surrogate/GARCH controls, validation and pilot results | In progress; next priority, full fixed pilot authorized |
+| 7 | `feat/research-multifractal-analysis` | MF-DFA, surrogate/GARCH controls, validation and pilot results | Validated; complete fixed pilot, integration pending |
 | 6 | `feat/research-bifurcation-analysis` | Reassess the appropriate dynamics analysis after task 5; deterministic continuation/stability only if justified | Deferred; specify after the multifractal pilot |
 
 Future PRs are opened when their changes are available; pending rows do not imply
@@ -392,3 +393,27 @@ windows are dependent, and null reference intervals are not population confidenc
 intervals. Multifractal scaling alone does not establish deterministic chaos,
 causal mechanisms, or empirical equivalence. A negative or inconclusive scientific
 result is valid; unresolved operational failures are not completion.
+
+## Task 7 handoff
+
+The full fixed pilot is complete: 15 simulations, five chronological index inputs,
+70 analysis windows, and 980 completed analysis jobs with no operational failures.
+All 114 focused checks and 25 default legacy cases passed. Simulation source is
+`78147c0`; final analysis source is `933b84f`, with final rendering separately
+fingerprinted. A numerical stationarity-boundary guard was added after detecting
+a rounding edge case; verified historical simulation reuse preserved every ABM
+trajectory, and all 70 observed analysis payloads are unchanged. The final study
+is `results/task7_multifractal_final_20261117/`. Full evidence and representative
+figures are in [VALIDATION.md](VALIDATION.md#multifractal-scaling-task-7-2026-11-17).
+
+The primary windows of all 12 controlled ABMs are inactive. The three original-
+forcing ABMs have finite but weak and length-sensitive scaling fits. NASDAQ alone
+exceeds the shuffled and IAAFT reference bounds for primary delta-h; none of the
+five indices exceeds its GARCH bound. These exploratory comparisons establish
+neither robust ABM–index multifractal equivalence nor deterministic chaos.
+
+Task 6's deterministic route remains deferred. This pilot does not validate an
+autonomous map, and another scaling study would require a prespecified treatment
+of transient windows, trading continuity, and independent seeds. Do not launch
+that follow-up or revive deterministic continuation automatically. Keep integration
+PR #3 draft for the final combined user validation; do not merge it into `main`.

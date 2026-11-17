@@ -9,6 +9,7 @@ import resource
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+from matplotlib.ticker import NullLocator
 import numpy as np
 
 from src.atlas_runner import atomic_json
@@ -116,6 +117,7 @@ def plot_scaling(primary, settings):
         if part is None:
             ax.text(.5, .5, row['observed']['analysis']['status'].replace('_', ' '),
                     transform=ax.transAxes, ha='center', va='center', color='#777777')
+            ax.set(xticks=[], yticks=[])
             continue
         scales, q = np.array(part['scales']), np.array(settings['q'])
         logf = np.array(part['log_fluctuations'], dtype=float)
@@ -124,6 +126,13 @@ def plot_scaling(primary, settings):
             valid = np.isfinite(logf[:, j])
             ax.plot(scales[valid], np.exp(logf[valid, j]), 'o-', ms=3, color=color, label=f'q = {power}')
         ax.set(xscale='log', yscale='log', xlabel='Scale (trading observations)', ylabel='Fq (normalized returns)')
+        ticks = [int(s) for s in scales if int(s) & (int(s)-1) == 0]
+        ax.set_xscale('log', base=2)
+        ax.set_xticks(ticks, [str(s) for s in ticks], fontsize=8)
+        ax.xaxis.set_minor_locator(NullLocator())
+        if part['fit']['status'] != 'ok':
+            ax.text(.98, .03, part['fit']['status'].replace('_', ' '),
+                    ha='right', transform=ax.transAxes, fontsize=7, color='#8a3a28')
         ax.grid(alpha=.2)
     handles, labels = next((ax.get_legend_handles_labels() for ax in axes if ax.get_legend_handles_labels()[0]), ([], []))
     if handles:
@@ -154,9 +163,13 @@ def plot_hurst(primary, settings):
         else:
             ax.text(.5, .5, 'Undefined: '+row['observed']['analysis']['status'].replace('_', ' '),
                     ha='center', va='center', transform=ax.transAxes, fontsize=8)
-    handles, labels = next((ax.get_legend_handles_labels() for ax in axes if len(ax.get_legend_handles_labels()[0]) > 1), ([], []))
-    if handles:
-        axes[0].legend(handles, labels, fontsize=7)
+            ax.set(xticks=[], yticks=[])
+    legend = {}
+    for ax in axes:
+        handles, labels = ax.get_legend_handles_labels()
+        legend.update(zip(labels, handles))
+    if legend:
+        fig.legend(legend.values(), legend.keys(), loc='outside lower center', ncols=4, fontsize=9)
     return fig
 
 
@@ -173,6 +186,11 @@ def plot_spectra(primary):
                 drawn = True
         if not drawn:
             ax.text(.5, .5, 'Full spectrum undefined', ha='center', va='center', transform=ax.transAxes, color='#777777')
+            ax.set(xticks=[], yticks=[])
+        weak = [f'DFA{order}' for order, part in row['observed']['analysis'].get('orders', {}).items()
+                if part['fit']['status'] == 'weak_scaling']
+        if weak:
+            ax.set_title(title_for(row)+'\nWeak scaling: '+', '.join(weak), fontsize=9)
         ax.set(xlabel='Singularity exponent α', ylabel='f(α)')
         ax.grid(alpha=.2)
     handles, labels = next((ax.get_legend_handles_labels() for ax in axes if ax.get_legend_handles_labels()[0]), ([], []))
@@ -232,8 +250,13 @@ def plot_sensitivity(rows):
                         alpha=.65, ms=3, label=caption if j == 0 else None)
         if not any(np.isfinite(line.get_ydata()).any() for line in ax.lines):
             ax.text(.5, .5, 'Δh undefined at all lengths', ha='center', transform=ax.transAxes, fontsize=8)
+            ax.set_yticks([])
         ax.set(xscale='log', xlabel='Window length', ylabel='Δh')
-        ax.set_xticks([1024, 2048, 4096, 8192], ['1,024', '2,048', '4,096', '8,192'], fontsize=7)
+        lengths = sorted({row['window']['length'] for row in group})
+        ax.set_xscale('log', base=2)
+        ax.set_xticks(lengths, [f'{n:,}' for n in lengths], fontsize=8)
+        ax.set_xlim(lengths[0]/1.15, lengths[-1]*1.15)
+        ax.xaxis.set_minor_locator(NullLocator())
         ax.grid(alpha=.2)
     axes[0].legend(fontsize=7)
     return fig
@@ -267,6 +290,21 @@ def primary_groups(primary):
 
 def findings_markdown(manifest, rows):
     primary = [r for r in rows if r['window']['length'] == manifest['settings']['primary_length']]
+    overview = []
+    for kind, caption in (('simulation', 'Simulations'), ('index', 'Indices')):
+        subset = [r for r in primary if r['window']['kind'] == kind]
+        counts = Counter(r['observed']['analysis'].get('orders', {}).get('1', {}).get('fit', {}).get(
+                         'status', r['observed']['analysis']['status']) for r in subset)
+        outcomes = ', '.join(f'{count} {status.replace("_", " ")}' for status, count in counts.items())
+        comparisons = []
+        for family in FAMILIES:
+            complete = [r['controls'][family]['1']['fit']['statistics']['delta_h'] for r in subset
+                        if r['controls'][family]['1']['fit']['statistics']['delta_h']['status'] == 'complete']
+            result = (f'{sum(c["above_reference_interval"] for c in complete)}/{len(complete)}'
+                      if complete else 'unavailable')
+            comparisons.append(f'{family}: {result}')
+        overview.append(f'{caption}: {outcomes}. Counts above the upper 95% control bound for Δh '
+                        'among complete comparisons — '+', '.join(comparisons)+'.')
     lines = ['# Multifractal pilot findings', '',
              'Research question: do simulated and real stock-index returns exhibit comparable '
              'multifractal scaling, and how much survives stochastic and finite-length controls?', '',
@@ -276,6 +314,10 @@ def findings_markdown(manifest, rows):
              f'Primary windows contain {manifest["settings"]["primary_length"]:,} returns. Simulations retain '
              f'{manifest["days"]-manifest["burn_in"]:,} daily observations after {manifest["burn_in"]:,} '
              'discarded trading days. All windows are end-aligned.', '',
+             '## Outcome overview', '', *overview, '',
+             'These are descriptive finite-sample comparisons, not multiplicity-adjusted tests. '
+             'Weak fits remain flagged, and unavailable comparisons provide no evidence either way. '
+             'Similar spectrum widths alone do not establish ABM–index equivalence or deterministic chaos.', '',
              '## Primary observations', '',
              '| Source | Seed | Return SD | No-trade fraction | Δh | Δα | Scaling status |',
              '| --- | --- | --- | --- | --- | --- | --- |']

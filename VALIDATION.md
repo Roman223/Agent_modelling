@@ -1,5 +1,244 @@
 # Engineering improvements: validation record
 
+## Multifractal scaling: task 7 (2026-11-17)
+
+Implemented on `feat/research-multifractal-analysis`, from integration commit
+`8e7798d`, after the approved priority change from Task 6 to Task 7. The pilot's
+simulation execution source is `78147c0`; the final analysis source is `933b84f`.
+The market rules and simulation RNG ordering are
+unchanged. A separate chronological loader handles research index returns;
+the legacy index loader retains its original behavior. Existing untracked
+research files remain untouched.
+
+The research question is whether ABM and real stock-index returns exhibit
+comparable multifractal scaling, and how much survives stochastic and
+finite-length controls. This implements the Mandelbrot-inspired financial
+scaling study. Basin/boundary geometry and deterministic bifurcation analysis
+remain separate, deferred questions.
+
+### Reuse and numerical methods
+
+Assessed [MFDFA](https://github.com/LRydin/MFDFA),
+[pyunicorn's surrogate implementation](https://www.pik-potsdam.de/~donges/pyunicorn/_modules/pyunicorn/timeseries/surrogates.html),
+and [arch](https://bashtage.github.io/arch/univariate/univariate_volatility_modeling.html).
+MFDFA 0.4.3 deliberately removes moment orders near zero, while this protocol
+requires the logarithmic q=0 limit and explicit unresolved-segment handling.
+The small MF-DFA kernel therefore adapts its established segmentation algorithm,
+with orthonormal polynomial projections and stable logarithmic moments. The
+unmodified package provides an independent numerical reference and FFT-based
+fractional Gaussian noise. A small NumPy IAAFT kernel adapts pyunicorn's rank and
+Fourier projections without adding that framework's broader dependency stack.
+`arch` 9.0.0 supplies Student-t GARCH fitting and simulation. Attribution and
+licenses are retained in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+All existing dependency versions remain unchanged; the new dependency closure is
+pinned. The study stores immutable settings, input snapshots, source/runtime
+hashes, serial benchmarks, checksummed output chunks, and separately identified
+renderings. It retains scientifically unavailable controls and undefined moments
+without treating those outcomes as worker failures.
+
+### Validation
+
+| Command | Result |
+| --- | --- |
+| `.venv/bin/python tests/test_multifractal.py` | 18/18 passed |
+| `.venv/bin/python tests/test_core.py` | 19/19 passed |
+| `.venv/bin/python tests/test_logging.py` | 11/11 passed |
+| `.venv/bin/python tests/test_bundles.py` | 9/9 passed |
+| `.venv/bin/python tests/test_experiments.py` | 18/18 passed |
+| `.venv/bin/python tests/test_atlas.py` | 10/10 passed |
+| `.venv/bin/python tests/test_reduction.py` | 16/16 passed |
+| `.venv/bin/python tests/test_heterogeneity.py` | 13/13 passed |
+| `.venv/bin/python tests/test_legacy_equivalence.py` | 25/25 identical to notebook `84fa2a6` |
+| Changed Python compilation, `pip check`, and `git diff --check` | Passed |
+
+All 114 focused checks passed. The numerical suite includes 18 known-answer
+checks: agreement with upstream MF-DFA; the q=0 limit; scale invariance;
+fractional Gaussian noise at H=0.3, 0.5, and 0.7; a lognormal cascade; degenerate
+and stalled series; exact IAAFT amplitudes and spectral tolerance; seeded GARCH
+simulation, variance, and admissible fitting. Eight 32,768-observation realizations
+are used for each fractional-noise H and the cascade, with tolerances fixed before
+market analysis.
+
+Workflow checks exercise immutable inputs, chronological dates, RNG isolation,
+interruption/resume with changed worker count, unchanged published records,
+corrupt-cache repair with identical scientific results, timeout/retry, disk and
+memory stops, parent-death cleanup through the simulation process chain, and a
+complete miniature simulation/control/report pipeline. Incomplete null ensembles
+remain inconclusive; finite weak-scaling null fits are retained. Tests ran in the
+background with one native numerical thread and a 6 GiB address-space cap.
+Logs and timing records are under `results/task7_validation_20261117/`. The final
+18-test multifractal rerun also checks the numerical GARCH stationarity boundary,
+verified historical simulation reuse without reexecution, mismatched-design
+rejection, and corrupt reused-artifact rejection.
+
+### Fixed pilot design
+
+Final study directory: `results/task7_multifractal_final_20261117/`. Analysis identity:
+`0fd4ecb56acc9dbace7a33fcbf0764d618968fcb74644eaf1b73dc5295edd4b1`.
+The manifest freezes 15 simulations: the exact five Task 5 atlas configurations,
+seeds 200–202, 10,240 trading days with 2,048 discarded and 8,192 retained.
+Population composition stays at 50 noise, 20 chartist, and 30 fundamentalist
+traders. The reference anchor uses alpha=0.1 and gamma=2; the liquidity anchor
+retains the stored alpha=0.19999999999999998 and gamma=0.5. Variants v6/v7 have
+zero closing noise and constant dividends, with persistent/day orders; v0 keeps
+the original forcing and persistent orders. No parameters were calibrated to
+the empirical results.
+
+The five index snapshots contain 2,508–2,516 returns from May 2016 through
+2026-05-08. Their largest observation gaps are four calendar days for the US
+indices and 27 days for MOEX/RTS. Gaps remain recorded rather than filled; scales
+refer to consecutive observed trading returns. The primary terminal windows have
+2,048 returns. Nested sensitivity windows have 1,024/2,048/4,096/8,192 observations
+for simulations and 1,024/2,048 for indices, totaling 70 windows.
+
+MF-DFA uses q=-3,-2.5,...,3, linear and quadratic detrending, quarter-octave scales
+16 through N/8, and a common 16–128 scale sensitivity fit. Linear detrending and
+delta-h = h(-3)-h(3) are primary. There are 99 planned controls per family/window
+(20,790 planned replicate slots), grouped into 840 chunks of at most 25; 70 observed
+analyses and 70 GARCH fits bring the analysis job count to 980. Invalid controls
+are retained with reasons rather than replaced. Seed identities use the recorded
+base seed 20261117 and SHA-256-derived local generators.
+
+During the initial analysis, an optimizer solution with persistence
+0.9999999999999999 exposed a numerical boundary issue in a strict `<1` check.
+The final protocol requires persistence below `1 - 1e-8`. This numerical guard
+was added before interpreting control comparisons, with a regression test for
+rounding at the boundary. The first analysis was stopped; its artifacts remain
+under `results/task7_multifractal_20261117/`. All 15 completed simulations were
+verified and copied with their original execution identities into the final
+study. The new manifest records that origin, and all analysis/control jobs were
+regenerated under the corrected source/settings identity. No ABMs were rerun or
+calibrated to obtain more favorable scaling results.
+The result-payload hashes of all 70 observed analyses match the first version
+exactly. Four boundary fits change from accepted to unavailable; the final fit
+inventory contains 14 admissible fits, 15 unavailable fits, and 41 constant inputs.
+
+### Observed scaling and inactivity
+
+All 12 controlled runs have zero return variance and zero trading volume
+throughout their final 2,048 observations. Their multifractal widths are undefined,
+not zero. Across all 60 simulation windows, 41 are constant, seven have undefined
+full-q fits because of zero/unresolved segment fluctuations, and the 12
+original-forcing windows have finite but weak DFA1 scaling. All five primary
+index windows meet the declared R-squared threshold. Nine of the ten index
+windows do so across both lengths.
+
+| Primary source | Seed | h(2) | delta-h | Spectrum width | DFA1 scaling |
+| --- | --- | ---: | ---: | ---: | --- |
+| Original forcing | 200 | 0.2486 | 0.1219 | 0.2409 | Weak |
+| Original forcing | 201 | 0.2044 | 0.1676 | 0.3349 | Weak |
+| Original forcing | 202 | 0.2177 | 0.1283 | 0.2535 | Weak |
+| RTS | — | 0.4756 | 0.1762 | 0.4755 | Meets threshold |
+| MOEX | — | 0.4749 | 0.2169 | 0.5411 | Meets threshold |
+| S&P 500 | — | 0.4786 | 0.1403 | 0.3170 | Meets threshold |
+| DJIA | — | 0.4689 | 0.1154 | 0.3186 | Meets threshold |
+| NASDAQ | — | 0.4719 | 0.1696 | 0.3383 | Meets threshold |
+
+Original-forcing delta-h has median 0.1283 and range 0.1219–0.1676; its spectrum
+width has median 0.2535 and range 0.2409–0.3349. Similar widths alone therefore
+would conceal differences in h(q), fit quality, and trading continuity. At the
+primary length, the scale interval is only 16–256 observations (1.20 decades).
+Meeting the fit threshold over this short interval does not establish asymptotic
+scaling or deterministic chaos. All individual seeds, both detrending orders,
+and nested-length/common-scale sensitivity fits are retained in the report.
+
+For the three primary original-forcing windows, seeds 201 and 202 exceed the
+upper 95% shuffled-control reference bound for delta-h; only seed 201 exceeds
+the IAAFT bound. Each of those comparison ensembles has all 99 usable replicates.
+These are descriptive comparisons of finite-sample statistics, not a multiplicity-
+adjusted test of multifractality. All three observed fits remain weak. Their GARCH
+fits lie on the stationarity boundary and are unavailable under the numerical
+guard, so GARCH cannot support an ABM comparison at the primary length.
+
+The original-forcing result is also sensitive to window length: full-grid DFA1
+delta-h becomes slightly negative at N=8,192 for all three seeds
+(-0.0238 to -0.0002), while fit quality remains weak. At that length the common
+16–128 scale fit gives delta-h 0.0025–0.0420, versus 0.1503–0.2283 at N=2,048.
+Quadratic detrending does not repair the original-forcing full-grid fit quality.
+Index results also vary by length and detrending: RTS and DJIA have weak primary
+DFA2 fits, and the US-index DFA1 widths are smaller in the 1,024-observation
+windows. Nested windows are dependent, so these are sensitivity results rather
+than additional independent evidence.
+
+### Index controls and research conclusion
+
+All 15 primary index/control comparisons contain 99 usable replicates. The table
+shows central 95% reference intervals for delta-h, not population confidence
+intervals or multiplicity-adjusted hypothesis tests.
+
+| Index | Observed delta-h | Shuffled interval | IAAFT interval | GARCH interval |
+| --- | ---: | --- | --- | --- |
+| RTS | 0.1762 | [0.0482, 0.2407] | [0.1093, 0.2943] | [-0.0500, 0.2722] |
+| MOEX | 0.2169 | [0.0925, 0.2722] | [0.1117, 0.2722] | [0.0195, 0.3646] |
+| S&P 500 | 0.1403 | [0.0244, 0.1804] | [0.0472, 0.1639] | [0.0361, 0.3539] |
+| DJIA | 0.1154 | [0.0225, 0.1903] | [0.0633, 0.2055] | [0.0270, 0.3303] |
+| NASDAQ | 0.1696 | [0.0106, 0.1348] | [0.0316, 0.1262] | [-0.0317, 0.2958] |
+
+NASDAQ alone exceeds the upper shuffled and IAAFT bounds at the primary length.
+None of the five exceeds the GARCH bound. This does not prove GARCH is the data-
+generating mechanism, establish equivalence to that model, or rule out market
+multifractality. It shows that this finite-sample width statistic does not
+separate these index observations from their fitted GARCH reference ensembles.
+
+The pilot does not establish robust comparable multifractal scaling between the
+tested ABMs and the indices. Inactivity prevents the controlled ABM comparison;
+the original-forcing ABM has weak fits, a different h(q) level, and substantial
+length sensitivity. Similar-looking spectra alone would hide those differences.
+This is a scientifically valid negative/inconclusive finding, not an operational
+failure. No model parameters were calibrated and no inactive observations removed.
+
+Keep deterministic continuation and bifurcation analysis deferred: this study
+does not supply a validated autonomous map. A possible next scaling study should
+prespecify windows across the approach to inactivity, independent seeds, and
+strong stochastic comparisons, preserving stalled outcomes. That follow-up needs
+a separate specification; it is not launched automatically by Task 7.
+
+### Coverage, resources, and artifacts
+
+The final study completed all 70 observed analyses, 70 GARCH-fit jobs, and 840
+control chunks, accounting for every one of the 20,790 planned replicate slots.
+No analysis jobs failed, timed out, or remained missing. Construction diagnostics
+are distinct from whether a complete finite-q statistic is available:
+
+| Control | Constant input | Construction accepted | Other unavailable outcomes |
+| --- | ---: | ---: | --- |
+| Shuffled | 4,059 | 2,871 | None |
+| IAAFT | 4,059 | 2,178 | 693 spectral mismatches above 1% |
+| GARCH | 4,059 | 1,386 | 1,485 unavailable-fit slots |
+
+The 693 IAAFT mismatches occur in the seven nonconstant controlled windows at
+N=8,192, all of which already have undefined full-q observed estimates. No
+surrogates were replaced to improve coverage. Finite weak-scaling null fits
+remain in the reference distributions; incomplete comparisons stay inconclusive.
+
+The 15 simulations took 10m 57.61s with two workers after a 9.76-second serial
+benchmark. Peak completed simulation-worker RSS was 168.8 MiB. The final analysis
+phases took 33.46s (observed), 43.65s (fits), and 13m 55.55s (controls), or
+15m 12.66s in total, excluding validation/rendering and the discarded initial
+analysis. The longest analysis worker took 18.47s, below its 300-second deadline.
+Peak analysis-worker RSS was 191.3 MiB; the final renderer used 235.5 MiB peak RSS.
+Native numerical threading stayed at one per worker. The final study occupies
+about 117 MiB, within the 5 GiB budget and with more than 30 GiB free disk.
+
+Reports are under `reports/0fd4ecb56acc9dbace7a33fcbf0764d618968fcb74644eaf1b73dc5295edd4b1/`
+inside the final study. They contain five PNG/PDF figure pairs, `tables.npz`,
+`summary.json`, and `findings.md`. All 980 records and 13 report payload hashes
+were checked. All five PNGs were visually inspected after correcting crowded
+log-axis ticks and the shared legend; all five PDF exports parse as one-page
+documents. The final plotting source is separately fingerprinted in `render.json`.
+The 30 simulation-source hashes and 13 analysis-source hashes match their recorded
+Git commits. Input snapshot and compact-artifact hashes were checked on reuse and
+again during the final report audit. Audit evidence is in `verification.json`,
+`audit_final.log`, and `results/task7_validation_20261117/source_verification.json`.
+
+Representative figures retain every primary seed and explicitly mark unavailable
+estimates:
+
+![Task 7 stochastic control comparisons](experiments/figures/task7_20261117/control_contrasts.png)
+
+![Task 7 length and detrending sensitivity](experiments/figures/task7_20261117/sensitivity.png)
+
 ## Retained individuality and structure discovery: task 5 (2026-10-30)
 
 Implemented on `feat/research-heterogeneity-study`, branched from integration

@@ -1071,3 +1071,21 @@ multifractality finding is required for a scientifically complete pilot.
 The standalone checks are in `tests/test_multifractal.py`; run them in the background
 with output redirected. They cover known answers, upstream agreement, RNG isolation,
 dated inputs, control fidelity, recovery, provenance, resource stops, and reporting.
+
+### Recorded pilot
+
+The validated pilot is under `results/task7_multifractal_final_20261117/`, using
+simulation source `78147c0` and analysis source `933b84f`. The final analysis reuses
+the verified 15 completed simulations after adding the numerical GARCH boundary
+guard; all 70 observed scaling results are identical across that correction.
+The source/runtime hashes and input snapshots in the manifests are authoritative
+for exact reproduction. A new study directory creates a new recorded identity;
+resuming a frozen study requires its recorded analysis source and dependencies.
+
+The primary terminal windows of all 12 controlled simulations are inactive and
+have undefined multifractal widths. The original-forcing runs have finite widths
+but weak fits and substantial length sensitivity. See the
+[validation and findings](VALIDATION.md#multifractal-scaling-task-7-2026-11-17)
+for the index controls, numerical results, and interpretation. These findings do
+not validate a deterministic map or justify moving automatically to bifurcation
+analysis. Integration PR #3 remains draft for the combined research review.

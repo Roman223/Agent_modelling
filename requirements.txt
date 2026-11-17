@@ -4,3 +4,6 @@ numpy>=1.26
 matplotlib>=3.8
 scikit-learn>=1.2
 packaging>=23
+scipy>=1.13
+MFDFA==0.4.3
+arch==9.0.0

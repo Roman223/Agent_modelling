@@ -10,6 +10,12 @@ unchanged. A separate chronological loader handles research index returns;
 the legacy index loader retains its original behavior. Existing untracked
 research files remain untouched.
 
+Validated task head and final rendering `2424f90` merged through
+[PR #9](https://github.com/Roman223/Agent_modelling/pull/9) as `bdb0122` on
+2026-11-17. The merged tree was verified identical to that validated head before
+the documentation handoff. Integration PR #3 remains draft for the combined
+research review; `main` is unchanged.
+
 The research question is whether ABM and real stock-index returns exhibit
 comparable multifractal scaling, and how much survives stochastic and
 finite-length controls. This implements the Mandelbrot-inspired financial
@@ -66,7 +72,8 @@ corrupt-cache repair with identical scientific results, timeout/retry, disk and
 memory stops, parent-death cleanup through the simulation process chain, and a
 complete miniature simulation/control/report pipeline. Incomplete null ensembles
 remain inconclusive; finite weak-scaling null fits are retained. Tests ran in the
-background with one native numerical thread and a 6 GiB address-space cap.
+background with one native numerical thread. The full validation harness used
+a 6 GiB address-space cap, and workflow children retain their bounded budgets.
 Logs and timing records are under `results/task7_validation_20261117/`. The final
 18-test multifractal rerun also checks the numerical GARCH stationarity boundary,
 verified historical simulation reuse without reexecution, mismatched-design

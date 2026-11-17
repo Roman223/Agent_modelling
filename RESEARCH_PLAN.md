@@ -17,8 +17,8 @@ specification supported by the findings.
 
 Execution task numbers below are distinct from the research phase numbers.
 Each task has its own branch and PR targeting `research/emergent-dynamics`.
-Tasks 1–5 are integrated and Task 7 is validated for integration. Task 6 remains
-separately specified if justified. Create each subsequent task branch from
+Tasks 1–5 and Task 7 are integrated. Task 6 requires a separate specification if
+justified. Create each subsequent task branch from
 the updated integration branch after its predecessor has merged; this keeps its
 PR focused on that task's changes. Use merge commits to retain the task history.
 
@@ -29,7 +29,7 @@ PR focused on that task's changes. Use merge commits to retain the task history.
 | 3 | `feat/research-parameter-atlas` | One-dimensional sweeps and coarse two-dimensional parameter maps | Merged via [PR #6](https://github.com/Roman223/Agent_modelling/pull/6) |
 | 4 | `feat/research-hard-reduction` | Hard-rule deterministic reduction and comparisons with controlled ABM runs | Merged via [PR #7](https://github.com/Roman223/Agent_modelling/pull/7) |
 | 5 | `feat/research-heterogeneity-study` | Representative portfolios, minimum retained individuality for ABM fidelity, and data-driven structure discovery | Merged via [PR #8](https://github.com/Roman223/Agent_modelling/pull/8) |
-| 7 | `feat/research-multifractal-analysis` | MF-DFA, surrogate/GARCH controls, validation and pilot results | Validated; complete fixed pilot, integration pending |
+| 7 | `feat/research-multifractal-analysis` | MF-DFA, surrogate/GARCH controls, validation and pilot results | Merged via [PR #9](https://github.com/Roman223/Agent_modelling/pull/9) |
 | 6 | `feat/research-bifurcation-analysis` | Reassess the appropriate dynamics analysis after task 5; deterministic continuation/stability only if justified | Deferred; specify after the multifractal pilot |
 
 Future PRs are opened when their changes are available; pending rows do not imply
@@ -395,6 +395,11 @@ causal mechanisms, or empirical equivalence. A negative or inconclusive scientif
 result is valid; unresolved operational failures are not completion.
 
 ## Task 7 handoff
+
+Validated task head `2424f90` merged through
+[PR #9](https://github.com/Roman223/Agent_modelling/pull/9) as `bdb0122` on
+2026-11-17. The merged tree matched the validated task head before this handoff
+update. Integration PR #3 remains draft.
 
 The full fixed pilot is complete: 15 simulations, five chronological index inputs,
 70 analysis windows, and 980 completed analysis jobs with no operational failures.

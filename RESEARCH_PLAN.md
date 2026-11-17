@@ -8,13 +8,17 @@ ABM reduction fidelity, data-driven structure discovery, and multifractal
 analysis. Deterministic bifurcation verification is conditional on finding a
 suitable, validated model. Basin/boundary geometry (research phase 4) is deferred.
 The approved 2026-10-30 revision replaces task 5's smoothing study with a study
-of retained individual differences; see the revised scope below.
+of retained individual differences; see the revised scope below. The approved
+2026-11-17 priority revision put Task 7 next, including all five existing market
+indices. Its fixed pilot is now validated; Task 6 still requires a separate
+specification supported by the findings.
 
 ## Sequential PRs
 
 Execution task numbers below are distinct from the research phase numbers.
 Each task has its own branch and PR targeting `research/emergent-dynamics`.
-Merge completed tasks in the order below. Create each subsequent task branch from
+Tasks 1–5 are integrated and Task 7 is validated for integration. Task 6 remains
+separately specified if justified. Create each subsequent task branch from
 the updated integration branch after its predecessor has merged; this keeps its
 PR focused on that task's changes. Use merge commits to retain the task history.
 
@@ -25,8 +29,8 @@ PR focused on that task's changes. Use merge commits to retain the task history.
 | 3 | `feat/research-parameter-atlas` | One-dimensional sweeps and coarse two-dimensional parameter maps | Merged via [PR #6](https://github.com/Roman223/Agent_modelling/pull/6) |
 | 4 | `feat/research-hard-reduction` | Hard-rule deterministic reduction and comparisons with controlled ABM runs | Merged via [PR #7](https://github.com/Roman223/Agent_modelling/pull/7) |
 | 5 | `feat/research-heterogeneity-study` | Representative portfolios, minimum retained individuality for ABM fidelity, and data-driven structure discovery | Merged via [PR #8](https://github.com/Roman223/Agent_modelling/pull/8) |
-| 6 | `feat/research-bifurcation-analysis` | Reassess the appropriate dynamics analysis after task 5; deterministic continuation/stability only if justified | Deferred pending task 5 findings |
-| 7 | `feat/research-multifractal-analysis` | MF-DFA, surrogate/GARCH controls, validation and pilot results | Pending |
+| 7 | `feat/research-multifractal-analysis` | MF-DFA, surrogate/GARCH controls, validation and pilot results | Validated; complete fixed pilot, integration pending |
+| 6 | `feat/research-bifurcation-analysis` | Reassess the appropriate dynamics analysis after task 5; deterministic continuation/stability only if justified | Deferred; specify after the multifractal pilot |
 
 Future PRs are opened when their changes are available; pending rows do not imply
 implemented code or completed experiments. Each PR records its predecessor, scope,
@@ -154,7 +158,7 @@ test trading continuity as well as prices. These are comparison anchors, not
 verified bifurcations or deterministic attractors. Create task 4 from the updated
 integration branch, including the PR #6 merge and this handoff documentation.
 The task 4 and task 5 handoffs below record the subsequent implementations.
-Task 6 remains deferred and task 7 is pending.
+Task 6 remains deferred; the 2026-11-17 revision prioritizes Task 7.
 
 ## Task 4 handoff
 
@@ -337,3 +341,79 @@ Its next specification should assess stronger forecasting baselines and
 within-configuration generalization before claiming a closed reduced model.
 Specify that follow-up before implementation. Task 7 is unchanged. Keep
 integration PR #3 draft until the combined work receives final user validation.
+
+## Task 7 protocol: multifractal scaling (2026-11-17)
+
+Research question: do simulated and real stock-index returns exhibit comparable
+multifractal scaling, and how much survives stochastic and finite-length controls?
+The user selected a complete pilot, inclusion of existing empirical indices, and
+fixed-regime comparison without ABM parameter calibration. Fractal regime-boundary
+geometry remains part of the broader agenda and is deferred independently.
+
+Use the exact five Task 5 atlas configurations and seeds 200–202: 15 full ABMs,
+10,240 trading days, discard 2,048, retain 8,192. The primary comparison uses the
+last 2,048 returns of each simulation and each of the five index files. End-aligned
+lengths are 1,024/2,048/4,096/8,192 for ABMs and 1,024/2,048 for indices: 70 windows.
+Snapshot inputs, sort empirical observations chronologically, record gaps without
+filling them, and retain ABM no-trade days. Preserve the legacy loader and model.
+
+Freeze q=-3,-2.5,...,3, including the logarithmic q=0 limit; linear detrending is
+primary and quadratic detrending is a sensitivity check. Use quarter-octave scales
+from 16 through N/8 and OLS log-log fits; also retain the common 16–128 scale fit.
+The primary statistic is h(-3)-h(3); retain h(q), tau(q), the Legendre spectrum,
+finite-q spectrum width, residuals, segment counts, and R-squared. Flag R-squared
+below 0.95. Zero/unresolved segments invalidate affected nonpositive moments;
+never add jitter, remove inactivity, or stitch active segments. Full spectrum width
+requires a complete q grid. No adaptive selection of favorable scaling ranges.
+
+Generate 99 shuffled, IAAFT, and fitted constant-mean Student-t GARCH(1,1) controls
+per window. Use separate hash-derived generators with base analysis seed 20261117.
+IAAFT preserves amplitudes exactly, allows at most 1,000 iterations, and records
+rank stability and relative Fourier-amplitude error; errors above 1% invalidate
+that control comparison. Require converged, stationary GARCH fits with finite
+admissible parameters and degrees of freedom above two; require persistence below
+1 minus 1e-8 so a boundary solution cannot pass through floating-point rounding.
+Discard 2,048 simulated
+GARCH burn-in steps. Keep unavailable fits explicit. Reuse control realizations
+across detrending settings. Retain finite weak-scaling null estimates, and report
+incomplete control ensembles as inconclusive rather than replacing realizations.
+
+Validate against MFDFA 0.4.3, Gaussian/fractional Gaussian noise, and a lognormal
+cascade before market analysis. The accepted implementation plan specifies the
+numerical tolerances, recovery tests, fixed default legacy checks, and outputs.
+The immutable study manifest stores the full machine-readable protocol and hashes.
+Run through bounded background batches until the fixed pilot is complete; default
+to two workers with one native thread each and the existing 6 GiB memory/5 GiB
+output/10 GiB free-disk limits. Time a full simulation and a longest-window control
+chunk before parallel execution. Save chunks of at most 25 control realizations.
+
+Deliver plots, compressed numeric tables, a findings report, validation evidence,
+and the Task 7 integration handoff. Report all three seeds separately. Nested
+windows are dependent, and null reference intervals are not population confidence
+intervals. Multifractal scaling alone does not establish deterministic chaos,
+causal mechanisms, or empirical equivalence. A negative or inconclusive scientific
+result is valid; unresolved operational failures are not completion.
+
+## Task 7 handoff
+
+The full fixed pilot is complete: 15 simulations, five chronological index inputs,
+70 analysis windows, and 980 completed analysis jobs with no operational failures.
+All 114 focused checks and 25 default legacy cases passed. Simulation source is
+`78147c0`; final analysis source is `933b84f`, with final rendering separately
+fingerprinted. A numerical stationarity-boundary guard was added after detecting
+a rounding edge case; verified historical simulation reuse preserved every ABM
+trajectory, and all 70 observed analysis payloads are unchanged. The final study
+is `results/task7_multifractal_final_20261117/`. Full evidence and representative
+figures are in [VALIDATION.md](VALIDATION.md#multifractal-scaling-task-7-2026-11-17).
+
+The primary windows of all 12 controlled ABMs are inactive. The three original-
+forcing ABMs have finite but weak and length-sensitive scaling fits. NASDAQ alone
+exceeds the shuffled and IAAFT reference bounds for primary delta-h; none of the
+five indices exceeds its GARCH bound. These exploratory comparisons establish
+neither robust ABM–index multifractal equivalence nor deterministic chaos.
+
+Task 6's deterministic route remains deferred. This pilot does not validate an
+autonomous map, and another scaling study would require a prespecified treatment
+of transient windows, trading continuity, and independent seeds. Do not launch
+that follow-up or revive deterministic continuation automatically. Keep integration
+PR #3 draft for the final combined user validation; do not merge it into `main`.

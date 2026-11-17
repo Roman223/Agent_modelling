@@ -30,6 +30,25 @@ def load_index(path):
     return data
 
 
+def load_chronological_index(path):
+    """Research-only daily observations, sorted oldest first without gap filling.
+
+    The legacy loader and its metric behavior remain unchanged. Dates denote the
+    end of each return interval; holidays and exchange closures are not filled.
+    """
+    data = load_index(path).sort_values('Дата', kind='stable').reset_index(drop=True)
+    prices = data['Цена'].to_numpy(dtype=float)
+    if len(data) < 2 or data['Дата'].isna().any() or data['Дата'].duplicated().any():
+        raise ValueError('Index requires at least two unique, valid observation dates')
+    if not np.isfinite(prices).all() or np.any(prices <= 0):
+        raise ValueError('Index prices must be finite and positive')
+    dates = data['Дата'].to_numpy(dtype='datetime64[D]')
+    return {'dates': dates[1:], 'returns': np.diff(np.log(prices)),
+            'interval_days': np.diff(dates).astype(int),
+            'price_observations': len(prices),
+            'first_price_date': str(dates[0]), 'last_price_date': str(dates[-1])}
+
+
 def index_metrics(prices, emb_dim=10):
     prices = np.asarray(prices)
     return {

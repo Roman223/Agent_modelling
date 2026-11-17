@@ -937,3 +937,124 @@ For background benchmarks and long regression runs, set `OPENBLAS_NUM_THREADS=1`
 `OMP_NUM_THREADS=1`, and `MKL_NUM_THREADS=1` to bound native threading. The benchmark
 prints timings and the process peak RSS (KiB on Linux); it compares the historical
 order book with the current implementation on the same seeded workload.
+
+## Multifractal scaling study (Task 7)
+
+Task 7 compares the full ABM's daily log returns with S&P 500, DJIA, NASDAQ,
+MOEX and RTS observations. It measures multiscaling and finite-q Legendre spectra
+with MF-DFA, shuffled controls, IAAFT surrogates and fitted Student-t GARCH(1,1).
+Task 7 is prioritized after Task 5; deterministic reduction validation and fractal
+regime-boundary geometry remain separate, deferred questions. No ABM parameters
+are fitted to market data in this pilot.
+
+### Fixed design and conventions
+
+The five stored Task 5 configurations are reused by atlas coordinate identity:
+reference variants v0/v6/v7 and liquidity variants v6/v7. Seeds 200–202 give
+15 seeded simulations of 10,240 trading days. Discard 2,048 trading days and
+retain 8,192; the exogenous warm-up is excluded by the daily artifact format.
+The primary simulation/index comparison uses the last 2,048 returns. Nested,
+end-aligned lengths are 1,024/2,048/4,096/8,192 for ABMs and 1,024/2,048 for indices,
+giving 70 source/window combinations. Nested windows are not independent replicates.
+
+`load_chronological_index` provides an additive research loader: it sorts dated
+observations ascending, validates unique dates and finite positive prices, and
+records gaps without filling them. The legacy `load_index` behavior remains
+unchanged. Original CSV files are snapshotted and hashed at study creation. Scales
+refer to trading observations, not calendar days; no-trade ABM days remain present.
+
+MF-DFA integrates demeaned, population-SD-normalized returns, detrends forward
+and backward segments, and uses q=-3,-2.5,...,3 including the logarithmic q=0 limit.
+Linear detrending is primary; quadratic detrending is a sensitivity analysis.
+Scales are rounded quarter-octaves from 16 through N/8. OLS log-log fits retain
+residuals and R-squared; values below 0.95 receive a weak-scaling flag. The common
+16–128 scale fit is retained for comparisons across lengths. Report h(q),
+tau(q)=q*h(q)-1, the Legendre spectrum, h(-3)-h(3), and the spectrum width over the
+declared finite q range. Derivatives use second-order finite differences.
+
+All segment contributions remain in positive moments. Constant or numerically
+unresolved segments make affected nonpositive moments undefined; a complete q grid
+is required for the full spectrum width. No jitter, inactive-day deletion, adaptive
+selection of attractive scaling ranges, or stitching of active segments is used.
+Numerical degeneracy is measured against 64 machine epsilons of the local profile
+scale. Exact constant increment segments are identified before roundoff can create
+spurious variance. Raw curves and diagnostics remain available for partial results.
+
+Each window has 99 controls per family, reused across detrending settings. IAAFT
+preserves the exact sample amplitudes, stops at stable ranks or 1,000 iterations,
+retains its best spectrum match, and flags relative Fourier-amplitude errors above
+1%. GARCH uses constant mean, GARCH(1,1), Student-t innovations, percentage log-return
+units, and 2,048 simulated burn-in steps. Convergence, admissibility and stationarity
+are required; unsuccessful fits remain explicitly unavailable. Generators derive
+from base seed 20261117 and hashed source/window/family/replicate identities. They
+do not consume simulation RNG draws. Finite weak-scaling control estimates remain
+in the null distribution; incomplete control ensembles remain inconclusive.
+
+The MF-DFA and IAAFT kernels adapt established open-source algorithms; their source
+attribution and licenses are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+MFDFA 0.4.3 is an independent numerical reference, and arch 9.0.0 supplies GARCH.
+
+### Execution and Python interface
+
+Install the pinned runtime, generate a dedicated study directory, and launch the
+complete workflow in the background. The existing Task 3 atlas must be available
+so exact stored configurations and source provenance can be retained.
+
+```bash
+.venv/bin/pip install -r requirements-lock.txt
+.venv/bin/python experiments/run_multifractal.py generate results/task7_multifractal_20261117 \
+    --atlas results/task3_atlas_20261027 --indices data
+.venv/bin/python -u experiments/run_multifractal.py study results/task7_multifractal_20261117 \
+    --workers 2 --minutes 120 > results/task7_multifractal_20261117/driver.log 2>&1 &
+.venv/bin/python experiments/run_multifractal.py status results/task7_multifractal_20261117
+```
+
+Run `study` again to resume. It automatically repeats ordinary 120-minute time-limited
+batches until the fixed work finishes, stopping on signals or other failures. Use
+`--retry-failed` after investigating operational failures. `analyze` runs one bounded
+batch per analysis phase without rerunning simulations; `validate-estimators`
+performs the known-answer checks; `render` regenerates figures and tables from
+complete records. No full study is launched merely by importing a module.
+
+```python
+from src.multifractal import analyze_series
+from src.multifractal_study import analyze_study, complete_study, generate_study
+from src.experiments import Limits
+
+diagnostics = analyze_series(daily_log_returns)
+# Long calls belong in a background job with redirected output.
+# complete_study(study_directory, limits=Limits(workers=2, minutes=120))
+```
+
+The coordinator enforces total memory/output/free-disk guards, worker address-space
+and file-size limits, 300-second analysis-job deadlines, and one native thread per
+worker. Defaults remain two workers, 6 GiB study memory, 5 GiB output and at least
+10 GiB free disk. The enclosing driver reserves 0.75 GiB while the simulation
+supervisor runs. Every analysis phase benchmarks one job before parallel execution;
+the first control chunk is an 8,192-observation original-forcing IAAFT comparison.
+Simulation and analysis phases do not run concurrently. Parent-death signals cover
+the simulation coordinator and worker chain as well as analysis workers.
+
+### Artifacts and interpretation
+
+The immutable manifest records the protocol, source/runtime identity, atlas
+provenance, input snapshots and simulation specification. Existing compact
+simulation artifacts live under `simulation/`. Analysis records are checksummed,
+atomically published compressed JSON under `analysis/<analysis_id>/records/`.
+Each control job contains at most 25 realizations' curves and diagnostics, with
+seeds sufficient for reconstruction; raw control series are not retained. Published
+chunks survive interruption. Corrupt caches are recomputed; corrupt scientific
+inputs and changed execution provenance are rejected.
+
+Reports under `reports/<analysis_id>/` contain five figure families in PNG and PDF,
+compressed numeric tables, a complete JSON summary, and `findings.md`. Plotting has
+a separate fingerprint. Control reference intervals are not ABM population confidence
+intervals. Three seeds support an exploratory pilot; individual seed results remain
+visible. Scaling, inactivity, finite-length bias and stochastic null comparisons
+must be interpreted together. Multifractal appearance does not establish
+deterministic chaos, causal mechanisms, or empirical equivalence. No positive
+multifractality finding is required for a scientifically complete pilot.
+
+The standalone checks are in `tests/test_multifractal.py`; run them in the background
+with output redirected. They cover known answers, upstream agreement, RNG isolation,
+dated inputs, control fidelity, recovery, provenance, resource stops, and reporting.

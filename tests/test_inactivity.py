@@ -101,9 +101,34 @@ class ScientificTests(unittest.TestCase):
         book.match_orders([buyer, seller], Asset(), on_match=observed.update)
         self.assertEqual(observed['dropped_bids'], 1)
         self.assertEqual(observed['stop_reason'], 'empty_bids')
+        self.assertEqual(observed['removed_bid_quantity'], 1)
+        buyer, seller = NoiseTrader(35, 0), NoiseTrader(0, 2)
+        book = OrderBook(closing_noise_scale=0)
+        book.add_order('buy', 10, 10, id(buyer))
+        book.add_order('sell', 10, 8, id(seller))
+        book.match_orders([buyer, seller], Asset(), on_match=observed.update)
+        self.assertEqual(observed['removed_bid_quantity'], 9)
+        self.assertEqual(observed['removed_ask_quantity'], 8)
 
 
 class DynamicsTests(unittest.TestCase):
+    def test_incremental_book_quantities_equal_full_scans(self):
+        testcase = self
+        class AuditedObserver(InactivityObserver):
+            def __call__(self, market, day, previous_price, trades):
+                super().__call__(market, day, previous_price, trades)
+                testcase.assertEqual(self.bid_quantity, sum(q for _, q, _ in market.book.buy_orders))
+                testcase.assertEqual(self.ask_quantity, sum(q for _, q, _ in market.book.sell_orders))
+        with patch('src.inactivity.InactivityObserver', AuditedObserver):
+            for life in ('persistent', 'day'):
+                for noise in (0, .05):
+                    for dividend in ('constant', 'stochastic'):
+                        s = replace(SCENARIOS['baseline'], order_lifetime=life,
+                                    closing_noise_scale=noise, dividend_mode=dividend)
+                        run_reference(s, seed=603, days=120)
+                        cp = run_checkpointed(s, seed=603, days=80).final
+                        run_continuation(cp, days=40)
+
     def test_observed_original_matches_all_eight_controls(self):
         for life in ('persistent', 'day'):
             for noise in (0, .05):

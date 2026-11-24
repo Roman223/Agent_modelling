@@ -3,7 +3,9 @@
 ## Inactivity and recovery: task 6 (2026-11-24)
 
 Implemented on `feat/research-inactivity-dynamics`, from integration commit
-`64e0864`, following the approved inactivity/recovery protocol. The original ABM
+`64e0864`, following the approved inactivity/recovery protocol. Initial source is
+`40848ff`; draft [PR #10](https://github.com/Roman223/Agent_modelling/pull/10) targets
+the integration branch. The original ABM
 rules, default numerical behavior, and random-draw ordering are unchanged.
 Optional hooks collect actual decision and matcher outcomes. The new module adds
 first-confirmation checkpoints, eight resource-conserving intervention arms, exact
@@ -23,10 +25,10 @@ Implementation validation:
 | `tests/test_reduction.py` | 16 |
 | `tests/test_heterogeneity.py` | 13 |
 | `tests/test_multifractal.py` | 18 |
-| `tests/test_inactivity.py` | 17 |
+| `tests/test_inactivity.py` | 18 |
 | `tests/test_legacy_equivalence.py` | 25 exact notebook comparisons |
 
-The 131 focused checks and 25 default legacy comparisons passed, using the existing
+The 132 focused checks and 25 default legacy comparisons passed, using the existing
 `.venv/bin/python` with `OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1`. The Task 6
 suite covers exact threshold boundaries, recovery/right censoring, known Kaplan–Meier
 answers, exact binomial uncertainty at zero/all events, paired factorial effects,
@@ -58,7 +60,19 @@ Engineering benchmarks, separate from pilot inference:
   factorial figures were visually inspected. These altered engineering settings
   are not pooled with or interpreted as the prespecified pilot.
 
-The fixed scientific pilot is configured for `results/task6_inactivity_20261124`:
+The initial pilot started at 13:18 UTC on 2026-11-24 in
+`results/task6_inactivity_20261124`. Two liquidity-v0 references (seeds 606/608)
+took 442.66/480.95 seconds because stalled markets accumulated hundreds of thousands
+of orders. Profiling identified daily book-quantity scans in both the observer and
+discarded ordinary summary logs. Incremental accounting plus disabling those
+unused logs reduced the same runs to 40.98/44.00 seconds. Every daily numeric array
+and final market/RNG digest was identical. An additional test compares incremental
+totals with full scans on fresh and restored markets across all eight controls;
+the updated 18 Task 6 checks and all 25 legacy cases passed again.
+
+The initial pilot was stopped; its artifacts are retained separately and are not
+pooled into the final study. The optimized fixed pilot uses
+`results/task6_inactivity_final_20261124`, logging to `results/task6_inactivity_final_20261124.log`:
 800 references, 100-day confirmation, five future seeds, and 1,000-day continuations.
 The full pilot, its final artifact audit and scientific interpretation are separate
 from the completed implementation checks; do not claim scientific completion until

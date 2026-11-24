@@ -28,7 +28,8 @@ class OrderBook:
 
     def match_orders(self, traders, asset, *, on_trade=None, on_price=None, on_match=None):
         executed = []
-        diagnostics = dict(dropped_bids=0, dropped_asks=0, rationed_bids=0, rationed_asks=0)
+        diagnostics = dict(dropped_bids=0, dropped_asks=0, rationed_bids=0, rationed_asks=0,
+                           removed_bid_quantity=0, removed_ask_quantity=0)
         stopped = None
         traders_dict = {id(trader): trader for trader in traders}
         while self.buy_orders and self.sell_orders and self.buy_orders[0][0] >= self.sell_orders[0][0]:
@@ -43,19 +44,23 @@ class OrderBook:
                 new_qty = int(buyer.cash / buy_price)
                 if new_qty <= 0:
                     diagnostics['dropped_bids'] += 1
+                    diagnostics['removed_bid_quantity'] += buy_qty
                     self.buy_orders.pop(0)
                     continue
                 self.buy_orders[0] = (buy_price, new_qty, buyer_id)
                 diagnostics['rationed_bids'] += 1
+                diagnostics['removed_bid_quantity'] += buy_qty - new_qty
                 buy_qty = new_qty
             if seller.assets < min(buy_qty, sell_qty):
                 new_qty = seller.assets
                 if new_qty <= 0:
                     diagnostics['dropped_asks'] += 1
+                    diagnostics['removed_ask_quantity'] += sell_qty
                     self.sell_orders.pop(0)
                     continue
                 self.sell_orders[0] = (sell_price, new_qty, seller_id)
                 diagnostics['rationed_asks'] += 1
+                diagnostics['removed_ask_quantity'] += sell_qty - new_qty
                 sell_qty = new_qty
             exec_price = (buy_price + sell_price) / 2
             exec_qty = min(buy_qty, sell_qty)
@@ -76,6 +81,8 @@ class OrderBook:
             else:
                 stopped = 'execution_constraint'
                 break
+            diagnostics['removed_bid_quantity'] += exec_qty
+            diagnostics['removed_ask_quantity'] += exec_qty
             if buy_qty == exec_qty:
                 self.buy_orders.pop(0)
             else:

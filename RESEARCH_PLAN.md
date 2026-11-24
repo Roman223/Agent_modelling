@@ -30,7 +30,7 @@ PR focused on that task's changes. Use merge commits to retain the task history.
 | 4 | `feat/research-hard-reduction` | Hard-rule deterministic reduction and comparisons with controlled ABM runs | Merged via [PR #7](https://github.com/Roman223/Agent_modelling/pull/7) |
 | 5 | `feat/research-heterogeneity-study` | Representative portfolios, minimum retained individuality for ABM fidelity, and data-driven structure discovery | Merged via [PR #8](https://github.com/Roman223/Agent_modelling/pull/8) |
 | 7 | `feat/research-multifractal-analysis` | MF-DFA, surrogate/GARCH controls, validation and pilot results | Merged via [PR #9](https://github.com/Roman223/Agent_modelling/pull/9) |
-| 6 | `feat/research-inactivity-dynamics` | Inactivity onset, decision/resource/book diagnostics, and resource-conserving factorial recovery | Implementation validated; fixed pilot pending |
+| 6 | `feat/research-inactivity-dynamics` | Inactivity onset, decision/resource/book diagnostics, and resource-conserving factorial recovery | Implementation validated; optimized pilot prepared; draft [PR #10](https://github.com/Roman223/Agent_modelling/pull/10) |
 
 Future PRs are opened when their changes are available; pending rows do not imply
 implemented code or completed experiments. Each PR records its predecessor, scope,
@@ -485,3 +485,19 @@ resource limits or failures. Validate exact replay, conservation, censoring, and
 known survival answers; interruption/resume, corruption and provenance guards;
 all existing focused suites and the 25 default legacy cases. Keep PR #3 draft for
 the final combined user validation.
+
+### Task 6 implementation handoff
+
+Initial source `40848ff` implements the approved protocol. The optimized version
+passed 132 focused checks plus all 25 default notebook comparisons. See the
+[interface](README.md#inactivity-and-recovery-task-6) and
+[validation record](VALIDATION.md#inactivity-and-recovery-task-6-2026-11-24).
+Draft [PR #10](https://github.com/Roman223/Agent_modelling/pull/10) targets the
+integration branch. The initial pilot was stopped to remove repeated book scans;
+full-length comparisons retained identical observations and final market/RNG state.
+Its artifacts remain separate. The final pilot uses
+`results/task6_inactivity_final_20261124`, with output in
+`results/task6_inactivity_final_20261124.log`. Its driver automatically completes eligible
+recovery jobs, analysis, and rendering after all references finish. The full
+scientific results and final artifact/figure audit remain pending. Do not merge
+Task 6 or mark the combined project complete until that work is finished.

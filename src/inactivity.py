@@ -73,6 +73,11 @@ class InactivityObserver:
     def begin(self, market, day):
         self.index = day - self.start
         a = market.asset
+        if self.index == 0:
+            self.bid_quantity = sum(q for _, q, _ in market.book.buy_orders)
+            self.ask_quantity = sum(q for _, q, _ in market.book.sell_orders)
+        elif market.scenario.order_lifetime == 'day':
+            self.bid_quantity = self.ask_quantity = 0
         self.values['decision_sma'][self.index] = np.mean(a.price_history[-20:])
         self.values['decision_previous_price'][self.index] = a.price_history[-2]
 
@@ -81,10 +86,20 @@ class InactivityObserver:
         self.values['decision_counts'][self.index, group, REASONS.index(trace['reason'])] += 1
         if accepted:
             side = 0 if order[0] == 'buy' else 1
+            if side == 0:
+                self.bid_quantity += order[2]
+            else:
+                self.ask_quantity += order[2]
             self.values['submissions'][self.index, group, side] += 1
             self.values['submissions'][self.index, group, side + 2] += order[2]
 
     def match(self, record):
+        # Resting queues can grow to hundreds of thousands of orders. Account
+        # for exact integer changes instead of scanning both queues every day.
+        self.bid_quantity -= record['removed_bid_quantity']
+        self.ask_quantity -= record['removed_ask_quantity']
+        if self.bid_quantity < 0 or self.ask_quantity < 0:
+            raise ArithmeticError('Negative observed book quantity')
         self.values['match_stop'][self.index] = MATCH_REASONS.index(record['stop_reason'])
         self.values['match_counts'][self.index] = [record[k] for k in MATCH_COUNTS]
 
@@ -100,8 +115,7 @@ class InactivityObserver:
                    best_bid=book.buy_orders[0][0] if book.buy_orders else 0,
                    best_ask=book.sell_orders[0][0] if book.sell_orders else 0,
                    bid_count=len(book.buy_orders), ask_count=len(book.sell_orders),
-                   bid_quantity=sum(q for _, q, _ in book.buy_orders),
-                   ask_quantity=sum(q for _, q, _ in book.sell_orders))
+                   bid_quantity=self.bid_quantity, ask_quantity=self.ask_quantity)
         for key, value in row.items():
             self.values[key][i] = value
         for k, kind in enumerate(TRADER_TYPES):
@@ -143,7 +157,9 @@ def run_continuation(checkpoint, *, days=1000):
 
 
 def _run(scenario, seed, days, threshold, continuation_days, checkpoint=None):
-    caller, log = np.random.get_state(), RunLog(LogOptions())
+    # The observer supplies all Task 6 records. Ordinary summary logs would
+    # duplicate book scans and be discarded at the end of every research run.
+    caller, log = np.random.get_state(), RunLog(LogOptions(level='off'))
     try:
         if checkpoint is None:
             np.random.seed(seed)

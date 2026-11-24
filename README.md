@@ -1097,17 +1097,17 @@ explicit checkpoint interventions. It replaces the deferred deterministic
 bifurcation task. The fixed protocol is in [RESEARCH_PLAN.md](RESEARCH_PLAN.md#approved-task-6-inactivity-and-controlled-recovery-2026-11-24).
 
 ```bash
-.venv/bin/python experiments/run_inactivity.py generate results/task6_inactivity_20261124 \
+.venv/bin/python experiments/run_inactivity.py generate results/task6_inactivity_final_20261124 \
   --atlas results/task3_atlas_20261027
 
 # Run this long command in the background with output redirected to a log.
 # Repeating it resumes the same immutable study.
-.venv/bin/python experiments/run_inactivity.py study results/task6_inactivity_20261124 \
-  --workers 2 > results/task6_inactivity_20261124.log 2>&1 &
+.venv/bin/python experiments/run_inactivity.py study results/task6_inactivity_final_20261124 \
+  --workers 2 > results/task6_inactivity_final_20261124.log 2>&1 &
 
-.venv/bin/python experiments/run_inactivity.py status results/task6_inactivity_20261124
-.venv/bin/python experiments/run_inactivity.py analyze results/task6_inactivity_20261124
-.venv/bin/python experiments/run_inactivity.py render results/task6_inactivity_20261124
+.venv/bin/python experiments/run_inactivity.py status results/task6_inactivity_final_20261124
+.venv/bin/python experiments/run_inactivity.py analyze results/task6_inactivity_final_20261124
+.venv/bin/python experiments/run_inactivity.py render results/task6_inactivity_final_20261124
 .venv/bin/python tests/test_inactivity.py
 ```
 
@@ -1151,7 +1151,9 @@ Artifacts contain an immutable checksummed manifest, SQLite phase ledgers,
 compressed daily numeric observations, all zero-volume spells, eligible immutable
 checkpoints, replay observations, intervention receipts, future outcomes, and
 checksummed completion records. Daily book statistics precede expiry; snapshots
-follow expiry. Full decision logs are not retained. Continuations store compact
+follow expiry. Resting book quantities use exact incremental accounting; ordinary
+summary logs are disabled for this observer-based study to avoid duplicate scans.
+Full decision logs are not retained. Continuations store compact
 daily prices, execution/self/distinct volumes, no-trade streaks and group resources;
 the reference observations also contain actual branch counts and book diagnostics.
 Analysis processes individual artifacts sequentially and publishes compressed

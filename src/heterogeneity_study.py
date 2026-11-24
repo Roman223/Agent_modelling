@@ -256,7 +256,10 @@ def worker(request_path):
     return code
 
 
-def _phase(root, name, jobs, study, limits, deadline, retry_failed):
+def _phase(root, name, jobs, study, limits, deadline, retry_failed, *, backend=None):
+    # Reuse the durable scheduler for other checkpoint studies. The default
+    # backend preserves Task 5's artifact and execution contracts.
+    backend = backend or sys.modules[__name__]
     directory = root / name
     directory.mkdir(exist_ok=True)
     for sub in ('runs', 'staging', 'invocations'):
@@ -282,7 +285,7 @@ def _phase(root, name, jobs, study, limits, deadline, retry_failed):
             path = directory / 'runs' / run_id
             if path.exists():
                 try:
-                    validate_artifact(path, expected[run_id], study['execution'])
+                    backend.validate_artifact(path, expected[run_id], study['execution'])
                     state, error = 'complete', None
                 except ARTIFACT_ERRORS as problem:
                     state, error = 'failed', str(problem)
@@ -299,12 +302,13 @@ def _phase(root, name, jobs, study, limits, deadline, retry_failed):
                 db.execute("UPDATE attempts SET state='interrupted',ended=? WHERE run_id=? AND state='running'", (now(), run_id))
         with db:
             db.execute("UPDATE invocations SET ended=?,stop_reason='coordinator_exited' WHERE ended IS NULL", (now(),))
-        return _supervise(root, directory, db, study, limits, deadline)
+        return _supervise(root, directory, db, study, limits, deadline, backend=backend)
     finally:
         db.close()
 
 
-def _supervise(root, directory, db, study, limits, deadline):
+def _supervise(root, directory, db, study, limits, deadline, *, backend=None):
+    backend = backend or sys.modules[__name__]
     invocation, active, stopped, handlers = uuid4().hex, {}, [], {}
     pending = [json.loads(r[0]) for r in db.execute("SELECT spec FROM runs WHERE state IN ('pending','interrupted') ORDER BY rowid")]
     with db:
@@ -340,8 +344,8 @@ def _supervise(root, directory, db, study, limits, deadline):
                 state, error = 'failed', record.get('error', f'Worker exit {process.returncode}; inspect staging worker.log')
                 if process.returncode == 0 and record.get('state') == 'complete':
                     try:
-                        validate_artifact(stage / 'artifact', job, study['execution'])
-                        if fingerprint() != study['execution']:
+                        backend.validate_artifact(stage / 'artifact', job, study['execution'])
+                        if backend.fingerprint() != study['execution']:
                             raise ValueError('Execution changed before publication')
                         os.rename(stage / 'artifact', directory / 'runs' / run_id)
                         _fsync_directory(directory / 'runs')
@@ -367,7 +371,7 @@ def _supervise(root, directory, db, study, limits, deadline):
                         emit('benchmark_complete', run_id=run_id)
             capacity = limits.workers if benchmark else 1
             while pending and not stopped and len(active) < capacity and time.monotonic() < deadline:
-                if fingerprint() != study['execution']:
+                if backend.fingerprint() != study['execution']:
                     stopped.append('provenance_changed')
                     break
                 failure = disk_guard(root, limits, reserved=(len(active)+1)*512*MIB)
@@ -384,7 +388,7 @@ def _supervise(root, directory, db, study, limits, deadline):
                                          (run_id, invocation, 'running', now(), limits.worker_memory, 32*MIB)).lastrowid
                     db.execute("UPDATE runs SET state='running',attempts=attempts+1,error=NULL WHERE run_id=?", (run_id,))
                 with (stage / 'worker.log').open('wb') as stream:
-                    process = subprocess.Popen([sys.executable, str(CLI), '_worker', str(stage / 'request.json'),
+                    process = subprocess.Popen([sys.executable, str(backend.CLI), '_worker', str(stage / 'request.json'),
                                                 '--memory-bytes', str(limits.worker_memory), '--parent-pid', str(os.getpid())],
                                                stdout=stream, stderr=subprocess.STDOUT, cwd=ROOT)
                 with db:

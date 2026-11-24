@@ -10,15 +10,15 @@ suitable, validated model. Basin/boundary geometry (research phase 4) is deferre
 The approved 2026-10-30 revision replaces task 5's smoothing study with a study
 of retained individual differences; see the revised scope below. The approved
 2026-11-17 priority revision put Task 7 next, including all five existing market
-indices. Its fixed pilot is now validated; Task 6 still requires a separate
-specification supported by the findings.
+indices. Its fixed pilot is now validated. The approved 2026-11-24 Task 6
+specification studies market inactivity, its mechanisms, and controlled recovery.
 
 ## Sequential PRs
 
 Execution task numbers below are distinct from the research phase numbers.
 Each task has its own branch and PR targeting `research/emergent-dynamics`.
-Tasks 1–5 and Task 7 are integrated. Task 6 requires a separate specification if
-justified. Create each subsequent task branch from
+Tasks 1–5 and Task 7 are integrated. Task 6 follows the inactivity protocol below.
+Create each subsequent task branch from
 the updated integration branch after its predecessor has merged; this keeps its
 PR focused on that task's changes. Use merge commits to retain the task history.
 
@@ -30,7 +30,7 @@ PR focused on that task's changes. Use merge commits to retain the task history.
 | 4 | `feat/research-hard-reduction` | Hard-rule deterministic reduction and comparisons with controlled ABM runs | Merged via [PR #7](https://github.com/Roman223/Agent_modelling/pull/7) |
 | 5 | `feat/research-heterogeneity-study` | Representative portfolios, minimum retained individuality for ABM fidelity, and data-driven structure discovery | Merged via [PR #8](https://github.com/Roman223/Agent_modelling/pull/8) |
 | 7 | `feat/research-multifractal-analysis` | MF-DFA, surrogate/GARCH controls, validation and pilot results | Merged via [PR #9](https://github.com/Roman223/Agent_modelling/pull/9) |
-| 6 | `feat/research-bifurcation-analysis` | Reassess the appropriate dynamics analysis after task 5; deterministic continuation/stability only if justified | Deferred; specify after the multifractal pilot |
+| 6 | `feat/research-inactivity-dynamics` | Inactivity onset, decision/resource/book diagnostics, and resource-conserving factorial recovery | Implementation validated; fixed pilot pending |
 
 Future PRs are opened when their changes are available; pending rows do not imply
 implemented code or completed experiments. Each PR records its predecessor, scope,
@@ -422,3 +422,66 @@ autonomous map, and another scaling study would require a prespecified treatment
 of transient windows, trading continuity, and independent seeds. Do not launch
 that follow-up or revive deterministic continuation automatically. Keep integration
 PR #3 draft for the final combined user validation; do not merge it into `main`.
+
+## Approved Task 6: inactivity and controlled recovery (2026-11-24)
+
+This specification supersedes the deferred bifurcation task. Task 4 failed ABM
+closure fidelity; Task 5 did not establish an autonomous transition map; Task 7
+found terminally inactive controlled ABMs. Study onset and mechanisms of inactivity
+and test recovery in the original individual-trader ABM. Do not perform deterministic
+continuation, another MF-DFA study, or an empirical-index comparison here.
+
+The fixed design has 800 references: seeds 600–649 at both stored atlas coordinates
+`grid-4-3` (reference) and `grid-6-0` (liquidity), each with all eight combinations of
+closing noise `{0, 0.05}`, dividends `{constant, stochastic}`, and orders
+`{persistent, day}`. Use the stored floating-point coordinates, baseline populations
+and endowments, window 20, no evolution, and no breaker. Run 10,240 trading days;
+exclude only the exogenous warm-up. Never pool these fresh references with earlier
+studies or treat failed/incomplete jobs as scientific censoring.
+
+A stall is confirmed after 100 consecutive exact zero executed-volume days. Retain
+all spells, their onset and confirmation, recovery, and terminal right censoring.
+Thresholds 20 and 250 are descriptive sensitivity analyses, not extra intervention
+cohorts. Report finite-horizon incidence and time to first confirmation, fixed
+100/500-day windows, and onset-aligned diagnostics with contributing counts. Capture
+actual decision reasons, submissions, self versus distinct-trader trades, strategy
+resources, accepted-price memory, and post-matching/pre-expiry book conditions.
+
+Capture one immutable checkpoint per eligible reference after its first confirmation
+and after day-order expiry. Apply all eight combinations of three binary interventions:
+
+1. Clear both outstanding queues once, retaining the subsequent lifetime policy.
+2. Reset the last 20 accepted prices to the current price, retaining history length
+   and dividends. This shared memory affects chartists and fundamentalists.
+3. Equalize active traders' target invested fractions at the current price, preserving
+   each trader's marked-to-market wealth and global cash/integer shares. Allocate
+   target shares proportional to wealth, floor, then assign largest fractional
+   remainders subject to affordability caps, breaking ties by stable trader ID.
+   Leave inactive traders unchanged and record transfers and conservation residuals.
+
+Each arm receives five reproducible future RNG seeds and 1,000 continuation days:
+at most 32,000 logical continuations before identical-state deduplication. Retain all
+eight labels after deduplication. Corresponding arms share the initial future RNG
+state; branch-dependent draw consumption prevents a claim of identical later shocks.
+Verify an additional untouched original-RNG continuation against the uninterrupted
+reference's daily observations and final state/RNG. Extend a late reference only
+enough for this validation tail; exclude that tail from onset statistics.
+
+The primary outcome is the distinct-trader exchange-day fraction on continuation
+days 901–1,000. Secondary outcomes include first execution/exchange, volume, and
+recurrent stalls. Average futures within checkpoints; use reference seeds as the
+inference unit for factorial main effects/interactions, with 2,000 paired bootstrap
+resamples and pointwise 95% intervals. Flag small samples and degenerate empirical
+intervals. Recovery is conditional on selected stalled states; finite nonrecovery
+does not prove permanent absorption. No-stall configurations have N/A recovery.
+
+Reuse checkpoint/provenance/worker infrastructure and NumPy/SciPy survival, binomial,
+and bootstrap functions; add no dependency. Freeze settings and source/runtime
+identity before the pilot. Benchmark a reference and recovery job before scaling;
+use two workers, one native thread each, 6 GiB total memory, 5 GiB output, a 10 GiB
+free-disk floor, and logged background batches no longer than 120 minutes each.
+Continue bounded resumable batches until the fixed design completes, stopping on
+resource limits or failures. Validate exact replay, conservation, censoring, and
+known survival answers; interruption/resume, corruption and provenance guards;
+all existing focused suites and the 25 default legacy cases. Keep PR #3 draft for
+the final combined user validation.

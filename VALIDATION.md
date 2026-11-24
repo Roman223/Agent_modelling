@@ -1,5 +1,72 @@
 # Engineering improvements: validation record
 
+## Inactivity and recovery: task 6 (2026-11-24)
+
+Implemented on `feat/research-inactivity-dynamics`, from integration commit
+`64e0864`, following the approved inactivity/recovery protocol. The original ABM
+rules, default numerical behavior, and random-draw ordering are unchanged.
+Optional hooks collect actual decision and matcher outcomes. The new module adds
+first-confirmation checkpoints, eight resource-conserving intervention arms, exact
+original-RNG replay, independent future streams, and a resumable bounded runner.
+Analysis uses reference-checkpoint inference units and explicit finite-horizon
+censoring. No deterministic bifurcation or new multifractal analysis was performed.
+
+Implementation validation:
+
+| Suite | Passing checks |
+| --- | ---: |
+| `tests/test_core.py` | 19 |
+| `tests/test_bundles.py` | 9 |
+| `tests/test_logging.py` | 11 |
+| `tests/test_experiments.py` | 18 |
+| `tests/test_atlas.py` | 10 |
+| `tests/test_reduction.py` | 16 |
+| `tests/test_heterogeneity.py` | 13 |
+| `tests/test_multifractal.py` | 18 |
+| `tests/test_inactivity.py` | 17 |
+| `tests/test_legacy_equivalence.py` | 25 exact notebook comparisons |
+
+The 131 focused checks and 25 default legacy comparisons passed, using the existing
+`.venv/bin/python` with `OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1`. The Task 6
+suite covers exact threshold boundaries, recovery/right censoring, known Kaplan–Meier
+answers, exact binomial uncertainty at zero/all events, paired factorial effects,
+future replication without pseudoreplication, self-trades/flat-price execution,
+actual matcher discards, and all eight forcing-control paths against unchanged
+simulation. Intervention tests cover integer allocation, ties, affordability,
+individual/global conservation, inactive/empty/all-cash/all-shares portfolios,
+immutable checkpoints, RNG isolation, and error cleanup. Workflow checks cover
+late-reference replay tails, state deduplication, all eight logical labels,
+manifest/provenance rejection, byte corruption and explicit retry, no-eligible
+cohorts, time-limit resume, active-worker termination, and disk/memory limits.
+
+The first full-suite run exposed an existing Task 7 test startup race: SQLite's
+ledger file was visible before its `attempts` table existed. The test now checks
+schema readiness before polling; all 18 Task 7 checks passed on rerun. No runtime
+behavior was changed for this repair. `git diff --check` also passed.
+
+Engineering benchmarks, separate from pilot inference:
+
+- Full-length liquidity-v6/seed-600 reference: 10,240 days in 37.65 seconds;
+  3,505,765 artifact bytes; first confirmation at trading day 4,998.
+- Its original-RNG replay and 8 arms × 5 futures × 1,000 days: 141.83 seconds;
+  all 40 transformed future states were distinct; 343,377 artifact bytes;
+  peak process RSS 318,218,240 bytes (about 303.5 MiB).
+- An additional 16-configuration engineering smoke study used seed 601,
+  1,200 reference days, a 20-day threshold, 40-day continuations, one future,
+  and a 20-day primary tail. All 16 references and two eligible checkpoint jobs
+  completed with exact replay; all eight PNG/PDF figures rendered. Resource and
+  factorial figures were visually inspected. These altered engineering settings
+  are not pooled with or interpreted as the prespecified pilot.
+
+The fixed scientific pilot is configured for `results/task6_inactivity_20261124`:
+800 references, 100-day confirmation, five future seeds, and 1,000-day continuations.
+The full pilot, its final artifact audit and scientific interpretation are separate
+from the completed implementation checks; do not claim scientific completion until
+its inventory and report have been verified. Run it in logged background batches
+with two workers, one native thread each, 6 GiB total memory, 5 GiB output, and a
+10 GiB free-space floor. Keep the task PR pending until that verification, and keep
+integration PR #3 draft for the user's final combined validation.
+
 ## Multifractal scaling: task 7 (2026-11-17)
 
 Implemented on `feat/research-multifractal-analysis`, from integration commit

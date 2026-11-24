@@ -1089,3 +1089,89 @@ but weak fits and substantial length sensitivity. See the
 for the index controls, numerical results, and interpretation. These findings do
 not validate a deterministic map or justify moving automatically to bifurcation
 analysis. Integration PR #3 remains draft for the combined research review.
+
+## Inactivity and recovery (Task 6)
+
+Task 6 studies the original ABM's loss of trading activity and recovery following
+explicit checkpoint interventions. It replaces the deferred deterministic
+bifurcation task. The fixed protocol is in [RESEARCH_PLAN.md](RESEARCH_PLAN.md#approved-task-6-inactivity-and-controlled-recovery-2026-11-24).
+
+```bash
+.venv/bin/python experiments/run_inactivity.py generate results/task6_inactivity_20261124 \
+  --atlas results/task3_atlas_20261027
+
+# Run this long command in the background with output redirected to a log.
+# Repeating it resumes the same immutable study.
+.venv/bin/python experiments/run_inactivity.py study results/task6_inactivity_20261124 \
+  --workers 2 > results/task6_inactivity_20261124.log 2>&1 &
+
+.venv/bin/python experiments/run_inactivity.py status results/task6_inactivity_20261124
+.venv/bin/python experiments/run_inactivity.py analyze results/task6_inactivity_20261124
+.venv/bin/python experiments/run_inactivity.py render results/task6_inactivity_20261124
+.venv/bin/python tests/test_inactivity.py
+```
+
+Python entry points are `generate_study(atlas, root)`, `complete_study(root)`,
+`analyze_study(root)`, and `study_status(root)` in `src.inactivity_study`.
+`study` benchmarks one job per phase before increasing concurrency and repeats
+bounded batches after time limits. It stops on failures, signals, disk or memory
+limits. `--one-batch` disables automatic continuation after a time limit;
+`--retry-failed` explicitly permits replacing damaged or failed artifacts.
+The existing hard machine caps apply. Small dimensions and seeds may be supplied
+to `generate` for engineering smoke checks; these are separate studies, never
+substitutes for the fixed pilot or pooled into its estimates.
+
+Defaults are 16 configurations × seeds 600–649, 10,240 trading days, a 100-day
+zero-volume confirmation threshold, eight intervention arms, five future seeds,
+and 1,000 continuation days. Exogenous warm-up is excluded; trading transients
+are retained. Zero returns do not define inactivity, and self-trades do not count
+as distinct-trader recovery. Stalls near the reference end receive an additional
+validation tail, which is excluded from the scientific observation horizon.
+
+Arm labels contain three bits: clear queues, reset shared accepted-price memory,
+and redistribute active portfolios. Thus `000` is the untouched-state future-RNG
+control and `111` applies all three. Each arm/future starts from an independent
+copy of the same first-confirmation checkpoint. Identical transformed states are
+simulated once, retaining every logical label. Before interventions are accepted,
+an additional original-RNG replay must reproduce every daily observation and the
+final dynamics/RNG exactly. Shared future RNG starts do not guarantee aligned
+later shocks when branch decisions consume different numbers of draws.
+
+Memory reset replaces only the last 20 accepted prices with the current price;
+it affects both chartists and fundamentalists. Portfolio redistribution targets
+shares `S * wealth_i / total_active_wealth`. It uses integer floors, largest
+remainders, stable trader-ID ties, and affordability caps. Transfers occur at the
+current price, preserving each trader's marked-to-market wealth, total cash and
+integer shares. Inactive portfolios are unchanged. Rounding errors and transfers
+are recorded; cash/wealth residual tolerances are `1e-8 + 1e-12 * abs(total)`.
+Outstanding order ownership and historical wealth records remain intact unless
+the queue-clear bit is set.
+
+Artifacts contain an immutable checksummed manifest, SQLite phase ledgers,
+compressed daily numeric observations, all zero-volume spells, eligible immutable
+checkpoints, replay observations, intervention receipts, future outcomes, and
+checksummed completion records. Daily book statistics precede expiry; snapshots
+follow expiry. Full decision logs are not retained. Continuations store compact
+daily prices, execution/self/distinct volumes, no-trade streaks and group resources;
+the reference observations also contain actual branch counts and book diagnostics.
+Analysis processes individual artifacts sequentially and publishes compressed
+tables, per-run/spell records, 100/500-day window summaries, English findings, and
+eight figures in PNG/PDF. Event-aligned plots include contributing-run counts.
+
+The primary recovery measure is the distinct-trader exchange fraction on days
+901–1,000. Five futures are averaged inside each checkpoint before reference-seed
+bootstrap resampling. Reports include all arms, contrasts to `000`, and seven
+factorial main/interaction effects with 2,000 resamples and pointwise 95% intervals.
+Small and degenerate samples are flagged. No-stall configurations have N/A recovery.
+Time to first stall confirmation uses Kaplan–Meier survival; incidence uses exact
+binomial intervals. Repeated spell-duration curves are descriptive, with no
+independent-spell confidence claim. Thresholds 20/250 are sensitivity summaries.
+Finite-horizon nonrecovery cannot establish permanent absorption, and the recovery
+effects apply only to the selected stalled checkpoints.
+
+Numerical methods reuse SciPy's
+[right-censored ECDF/Kaplan–Meier](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.ecdf.html),
+[binomial interval](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.binomtest.html), and
+[bootstrap](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.bootstrap.html)
+implementations. A broader survival framework or change-point package is unnecessary
+for this prespecified exact-zero-volume definition. No new dependency is required.

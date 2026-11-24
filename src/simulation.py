@@ -168,22 +168,33 @@ def _advance_market(market, day, days, verbose, run_log, observer=None):
                         fundamentalist_gamma=scenario.fundamentalist_gamma)
 
     trading_halted = asset.check_halt_status() if scenario.halt_check else False
+    # Optional research diagnostics observe the actual decisions and matcher.
+    # They never repeat a decision or consume random numbers.
+    diagnostics = observer if hasattr(observer, 'decision') else None
+    if diagnostics is not None:
+        diagnostics.begin(market, day)
 
     if not trading_halted:
         for trader in traders:
-            trace = {} if run_log.wants_detail('decisions', run_log.trader_id(trader)) else None
+            log_decision = run_log.wants_detail('decisions', run_log.trader_id(trader))
+            trace = {} if diagnostics is not None or log_decision else None
             if trader.cash <= 0 and trader.assets <= 0:
                 if trader.active:
                     run_log.event('trader_deactivated', trader_id=run_log.trader_id(trader),
                                   type=trader.type, reason='no_cash_and_no_holdings')
                 trader.active = False
-                if trace is not None:
+                if diagnostics is not None:
+                    diagnostics.decision(trader, {'reason': 'no_cash_and_no_holdings'},
+                                         (None, None, None), False)
+                if log_decision:
                     run_log.decision(trader, {'reason': 'no_cash_and_no_holdings'},
                                      (None, None, None), False)
                 continue
             order_type, price, qty = trader.make_decision(asset, trace=trace)
             accepted_order = bool(order_type and price and qty and qty > 0)
-            if trace is not None:
+            if diagnostics is not None:
+                diagnostics.decision(trader, trace, (order_type, price, qty), accepted_order)
+            if log_decision:
                 run_log.decision(trader, trace, (order_type, price, qty), accepted_order)
             if order_type and price and qty:
                 order_book.add_order(order_type, price, qty, id(trader))
@@ -193,7 +204,8 @@ def _advance_market(market, day, days, verbose, run_log, observer=None):
         executed = order_book.match_orders(
             traders, asset,
             on_trade=run_log.trade if run_log.options.level in ('trades', 'decisions') else None,
-            on_price=price_formation.update if run_log.enabled else None)
+            on_price=price_formation.update if run_log.enabled else None,
+            on_match=diagnostics.match if diagnostics is not None else None)
     else:
         asset.halt_events.append(day)
         run_log.event('trading_skipped', reason='circuit_breaker', remaining=asset.halt_remaining)

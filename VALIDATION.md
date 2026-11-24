@@ -4,7 +4,8 @@
 
 Implemented on `feat/research-inactivity-dynamics`, from integration commit
 `64e0864`, following the approved inactivity/recovery protocol. Initial source is
-`40848ff`; draft [PR #10](https://github.com/Roman223/Agent_modelling/pull/10) targets
+`40848ff`, with optimized execution source `e07f286`; draft
+[PR #10](https://github.com/Roman223/Agent_modelling/pull/10) targets
 the integration branch. The original ABM
 rules, default numerical behavior, and random-draw ordering are unchanged.
 Optional hooks collect actual decision and matcher outcomes. The new module adds
@@ -72,7 +73,8 @@ the updated 18 Task 6 checks and all 25 legacy cases passed again.
 
 The initial pilot was stopped; its artifacts are retained separately and are not
 pooled into the final study. The optimized fixed pilot uses
-`results/task6_inactivity_final_20261124`, logging to `results/task6_inactivity_final_20261124.log`:
+`results/task6_inactivity_final_20261124`, logging to `results/task6_inactivity_final_20261124.log`.
+It started at 13:37 UTC on 2026-11-24:
 800 references, 100-day confirmation, five future seeds, and 1,000-day continuations.
 The full pilot, its final artifact audit and scientific interpretation are separate
 from the completed implementation checks; do not claim scientific completion until

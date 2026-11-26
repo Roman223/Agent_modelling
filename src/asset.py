@@ -1,4 +1,4 @@
-"""Asset prices, stochastic dividends, and optional circuit-breaker state."""
+"""Asset prices, configurable dividends, and optional circuit-breaker state."""
 
 import numpy as np
 
@@ -11,11 +11,13 @@ class Asset:
     rejected and halts trading. last_check_price is only refreshed by check_halt_status(), so without calling
     it the halt flag, once set, stays set (see SCENARIOS['evolution']).
     """
-    def __init__(self, initial_price=100, circuit_breaker=False, *, log=print, event=None):
+    def __init__(self, initial_price=100, circuit_breaker=False, *, log=print, event=None,
+                 dividend_mode='stochastic'):
         self.log = log
         self.event = event
         self.price_history = [initial_price]
         self.dividend_history = [0.016]
+        self.dividend_mode = dividend_mode
         self.current_price = initial_price
         self.circuit_breaker = circuit_breaker
         self.trading_halted = False
@@ -49,6 +51,9 @@ class Asset:
         else:
             shock = 0
         new_div = self.dividend_history[-1] * (1 + rd + sigma_d * np.random.randn() + shock)
+        # Retain every legacy draw, including the conditional shock, in control runs.
+        if self.dividend_mode == 'constant':
+            new_div = 0.016
         self.dividend_history.append(max(new_div, 0))
         return self.dividend_history[-1]
 

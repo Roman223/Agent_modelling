@@ -1,4 +1,4 @@
-"""Persistent limit-order storage and midpoint trade matching."""
+"""Limit-order storage, midpoint trade matching, and optional daily expiry."""
 
 from bisect import bisect_right
 from operator import itemgetter
@@ -7,11 +7,13 @@ import numpy as np
 
 
 class OrderBook:
-    """Match bids and asks while retaining unmatched orders across trading days."""
+    """Match bids and asks; unmatched orders persist unless day expiry is selected."""
 
-    def __init__(self):
+    def __init__(self, *, closing_noise_scale=0.05, order_lifetime='persistent'):
         self.buy_orders = []
         self.sell_orders = []
+        self.closing_noise_scale = closing_noise_scale
+        self.order_lifetime = order_lifetime
 
     def add_order(self, order_type, price, quantity, trader_id):
         if quantity <= 0:
@@ -24,8 +26,11 @@ class OrderBook:
             position = bisect_right(self.sell_orders, price, key=itemgetter(0))
             self.sell_orders.insert(position, (price, quantity, trader_id))
 
-    def match_orders(self, traders, asset, *, on_trade=None, on_price=None):
+    def match_orders(self, traders, asset, *, on_trade=None, on_price=None, on_match=None):
         executed = []
+        diagnostics = dict(dropped_bids=0, dropped_asks=0, rationed_bids=0, rationed_asks=0,
+                           removed_bid_quantity=0, removed_ask_quantity=0)
+        stopped = None
         traders_dict = {id(trader): trader for trader in traders}
         while self.buy_orders and self.sell_orders and self.buy_orders[0][0] >= self.sell_orders[0][0]:
             buy_price, buy_qty, buyer_id = self.buy_orders[0]
@@ -33,24 +38,34 @@ class OrderBook:
             buyer = traders_dict.get(buyer_id)
             seller = traders_dict.get(seller_id)
             if not buyer or not seller:
+                stopped = 'missing_owner'
                 break
             if buyer.cash < buy_price * min(buy_qty, sell_qty):
                 new_qty = int(buyer.cash / buy_price)
                 if new_qty <= 0:
+                    diagnostics['dropped_bids'] += 1
+                    diagnostics['removed_bid_quantity'] += buy_qty
                     self.buy_orders.pop(0)
                     continue
                 self.buy_orders[0] = (buy_price, new_qty, buyer_id)
+                diagnostics['rationed_bids'] += 1
+                diagnostics['removed_bid_quantity'] += buy_qty - new_qty
                 buy_qty = new_qty
             if seller.assets < min(buy_qty, sell_qty):
                 new_qty = seller.assets
                 if new_qty <= 0:
+                    diagnostics['dropped_asks'] += 1
+                    diagnostics['removed_ask_quantity'] += sell_qty
                     self.sell_orders.pop(0)
                     continue
                 self.sell_orders[0] = (sell_price, new_qty, seller_id)
+                diagnostics['rationed_asks'] += 1
+                diagnostics['removed_ask_quantity'] += sell_qty - new_qty
                 sell_qty = new_qty
             exec_price = (buy_price + sell_price) / 2
             exec_qty = min(buy_qty, sell_qty)
             if exec_qty <= 0:
+                stopped = 'nonpositive_quantity'
                 break
             if buyer.cash >= exec_price * exec_qty and seller.assets >= exec_qty:
                 if on_trade is not None:
@@ -64,7 +79,10 @@ class OrderBook:
                 if on_trade is not None:
                     on_trade(exec_price, exec_qty, buyer, seller, before)
             else:
+                stopped = 'execution_constraint'
                 break
+            diagnostics['removed_bid_quantity'] += exec_qty
+            diagnostics['removed_ask_quantity'] += exec_qty
             if buy_qty == exec_qty:
                 self.buy_orders.pop(0)
             else:
@@ -78,10 +96,34 @@ class OrderBook:
             if total_qty > 0:
                 liquidity_factor = 1 / (1 + total_qty / 1000)
                 volume_weighted_price = sum(price * qty for price, qty, _, _ in executed) / total_qty
-                new_price = volume_weighted_price * (1 + 0.05 * liquidity_factor * np.random.randn())
+                # Even zero noise consumes the original draw, after executions only.
+                new_price = volume_weighted_price * (1 + self.closing_noise_scale * liquidity_factor * np.random.randn())
                 accepted = asset.update_price(max(new_price, 0.01))
                 if on_price is not None:
                     on_price({'vwap': volume_weighted_price, 'liquidity_factor': liquidity_factor,
                               'proposed_price_before_floor': new_price,
                               'proposed_price': max(new_price, 0.01), 'accepted': accepted})
+        if on_match is not None:
+            if stopped is None:
+                stopped = ('empty_both' if not self.buy_orders and not self.sell_orders else
+                           'empty_bids' if not self.buy_orders else
+                           'empty_asks' if not self.sell_orders else 'uncrossed')
+            on_match({**diagnostics, 'stop_reason': stopped})
         return executed
+
+    def expire_day_orders(self):
+        """Clear day-order remainders after summaries and return counts for logging.
+
+        Persistent books and empty day books return None. Quantities describe the
+        unmatched remainders, including partially filled orders.
+        """
+        if self.order_lifetime != 'day' or not (self.buy_orders or self.sell_orders):
+            return None
+        expired = {
+            'buy_orders': len(self.buy_orders), 'sell_orders': len(self.sell_orders),
+            'buy_quantity': sum(order[1] for order in self.buy_orders),
+            'sell_quantity': sum(order[1] for order in self.sell_orders),
+        }
+        self.buy_orders.clear()
+        self.sell_orders.clear()
+        return expired

@@ -17,7 +17,8 @@ specification studies market inactivity, its mechanisms, and controlled recovery
 
 Execution task numbers below are distinct from the research phase numbers.
 Each task has its own branch and PR targeting `research/emergent-dynamics`.
-Tasks 1–5 and Task 7 are integrated. Task 6 follows the inactivity protocol below.
+Tasks 1–5 and Task 7 are integrated. Task 6's inactivity pilot and final audit are
+complete; its validated task PR is ready for integration.
 Create each subsequent task branch from
 the updated integration branch after its predecessor has merged; this keeps its
 PR focused on that task's changes. Use merge commits to retain the task history.
@@ -30,7 +31,7 @@ PR focused on that task's changes. Use merge commits to retain the task history.
 | 4 | `feat/research-hard-reduction` | Hard-rule deterministic reduction and comparisons with controlled ABM runs | Merged via [PR #7](https://github.com/Roman223/Agent_modelling/pull/7) |
 | 5 | `feat/research-heterogeneity-study` | Representative portfolios, minimum retained individuality for ABM fidelity, and data-driven structure discovery | Merged via [PR #8](https://github.com/Roman223/Agent_modelling/pull/8) |
 | 7 | `feat/research-multifractal-analysis` | MF-DFA, surrogate/GARCH controls, validation and pilot results | Merged via [PR #9](https://github.com/Roman223/Agent_modelling/pull/9) |
-| 6 | `feat/research-inactivity-dynamics` | Inactivity onset, decision/resource/book diagnostics, and resource-conserving factorial recovery | Implementation validated; optimized pilot running; draft [PR #10](https://github.com/Roman223/Agent_modelling/pull/10) |
+| 6 | `feat/research-inactivity-dynamics` | Inactivity onset, decision/resource/book diagnostics, and resource-conserving factorial recovery | Implementation, full pilot, and final audit validated; ready for integration through [PR #10](https://github.com/Roman223/Agent_modelling/pull/10) |
 
 Future PRs are opened when their changes are available; pending rows do not imply
 implemented code or completed experiments. Each PR records its predecessor, scope,
@@ -498,7 +499,76 @@ full-length comparisons retained identical observations and final market/RNG sta
 Its artifacts remain separate. The final pilot uses
 `results/task6_inactivity_final_20261124`, with output in
 `results/task6_inactivity_final_20261124.log`. It started at 13:37 UTC on 2026-11-24.
-Its driver automatically completes eligible
-recovery jobs, analysis, and rendering after all references finish. The full
-scientific results and final artifact/figure audit remain pending. Do not merge
-Task 6 or mark the combined project complete until that work is finished.
+Its driver completed all eligible recovery jobs, analysis, and rendering after
+the references finished. The full scientific pilot and final artifact/figure audit
+passed on 2026-11-26. Historical pauses and restarts are recorded below.
+
+Paused at the user's request on 2026-11-24 at 14:46 UTC. The coordinator and workers
+exited with 428 references complete, two interrupted and restartable, and 370
+pending. Recovery experiments had not started.
+
+The user requested resumption on 2026-11-25. Source/runtime identity and all 428
+completed artifacts were verified, and the same study resumed at 13:09 UTC with
+two workers and the original limits. All 800 references completed at 14:08 UTC,
+and 522 eligible recovery checkpoint jobs were scheduled.
+
+Paused again at the user's explicit request on 2026-11-25 at 15:53 UTC. The
+coordinator and workers exited cleanly. All 800 references and 121 recovery batches
+are complete; two recovery batches are interrupted and 399 are pending. No jobs
+failed. The pause required an explicit user request before resumption. Preserve
+the frozen study and execution source.
+
+Resume with the same `study` command from the README, using
+`results/task6_inactivity_final_20261124` and two workers. Completed references and
+recovery batches are verified and reused; only the interrupted batches restart.
+Analysis, rendering, the final audit, and integration remain pending.
+
+The user requested resumption on 2026-11-26. Source/runtime identity and completed
+artifacts were verified. Recovery resumed at 10:52 UTC with 401 checkpoint jobs
+remaining, two worker slots, and unchanged limits. The first job runs alone as
+the scheduler's benchmark before both slots are used. Logs are appended to the
+same file. A preceding restart attempt exited before launching recovery workers
+with a transient SQLite lock, apparently coinciding with a status query. Monitor
+the append-only log during execution; the ledger writer has a zero-second busy
+timeout. No simulation source or frozen study settings were changed.
+
+The resumed run stopped automatically at 11:08 UTC on 2026-11-26 with
+`free_disk_limit`: 138/522 recovery jobs complete, two interrupted, and 382 pending.
+The coordinator exited with code 2. At 12:01 UTC the filesystem had only 2.6 GiB
+free; the study itself still occupied about 2.0 GiB. Restore sufficient free space
+for the unchanged 10 GiB floor and active-worker reservations before restarting.
+Completed artifacts remain preserved. About 6–7 hours of running time remain at
+the observed pace, excluding any time needed to resolve the disk shortage.
+
+The user requested continuation later on 2026-11-26. At 12:13 UTC, available disk
+space was 60 GiB and available memory about 9.2 GiB. Source/runtime identity passed
+again, and the same study was restarted with two workers and all original limits.
+It resumes from 138 completed recovery jobs, with 384 remaining. The existing log
+is retained and appended; analysis, rendering, and the final audit remain pending.
+
+### Task 6 completed pilot and integration handoff (2026-11-26)
+
+All 800 references and 522 recovery checkpoint jobs are complete. Recovery finished
+at 17:39 UTC; analysis and all eight PNG/PDF figure families finished by 17:48 UTC.
+The coordinator exited successfully. Every checkpoint passed exact original-RNG
+replay. State deduplication retained all 20,880 logical arm/future labels while
+executing 14,900 distinct futures. There are no failed or incomplete jobs.
+
+The final audit verified all 1,322 input artifacts, 36 execution-source hashes,
+six analysis payloads, and sixteen figure payloads. It independently reconciled
+reference stall thresholds and primary recovery outcomes with daily arrays and
+checked arm means and factorial estimates. All eight figure families were visually
+inspected. See [the complete validation and findings](VALIDATION.md#completed-task-6-pilot-2026-11-26).
+
+Every zero-closing-noise reference stalled; 122/400 positive-noise references did.
+Recovery depends strongly on portfolios, accepted-price memory, and the subsequent
+forcing/order-lifetime policy. Queue clearing alone does not improve the primary
+outcome in this pilot. Conditional finite-horizon recovery does not establish a
+deterministic transition map or permanent absorption. No further simulations are
+required for the approved Task 6 pilot.
+
+Integrate the validated Task 6 PR with a merge commit, verify its merged tree, and
+update integration PR #3. Keep PR #3 draft and leave `main` unchanged until the
+user validates the combined seven-task result. Broader confirmatory studies,
+additional model changes, and deterministic bifurcation analysis remain outside
+this completed pilot's scope.

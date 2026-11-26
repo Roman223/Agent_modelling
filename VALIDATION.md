@@ -76,12 +76,150 @@ pooled into the final study. The optimized fixed pilot uses
 `results/task6_inactivity_final_20261124`, logging to `results/task6_inactivity_final_20261124.log`.
 It started at 13:37 UTC on 2026-11-24:
 800 references, 100-day confirmation, five future seeds, and 1,000-day continuations.
+At the user's request it stopped cleanly at 14:46 UTC: 428 references complete,
+two interrupted, 370 pending, no failed runs, and no recovery jobs started.
+The stopped invocation records `signal_15`; all study workers exited at the pause.
+The user requested resumption on 2026-11-25. After verifying source/runtime identity
+and the 428 completed artifacts, the same study resumed at 13:09 UTC with two
+workers and unchanged limits. The previous log is retained and new output appended.
+All 800 references finished at 14:08 UTC. The user requested another pause on
+2026-11-25 at 15:53 UTC: 121/522 recovery batches complete, two interrupted,
+399 pending, and no failures. The continuation invocation ended with `signal_15`;
+the coordinator returned exit code 2 and no Python study processes remained.
+All completed artifacts were retained. The user explicitly requested resumption
+on 2026-11-26. Source/runtime identity and completed-artifact checks passed; the
+recovery phase resumed at 10:52 UTC with 401 checkpoint jobs remaining and the
+same two-worker limits. A preceding restart attempt hit a transient SQLite lock
+before launching recovery workers, apparently during a concurrent status query.
+The writer uses a zero-second busy timeout; monitor the append-only log during
+execution. No simulation source or study settings were changed.
+At 11:08 UTC on 2026-11-26 the coordinator stopped automatically with
+`free_disk_limit` and exit code 2: 138 recovery jobs complete, two interrupted,
+382 pending. A 12:01 UTC check found only 2.6 GiB free on the filesystem; study
+output remained about 2.0 GiB. Further execution requires sufficient disk space
+for the original 10 GiB floor plus worker reservations. Completed artifacts are
+preserved; no scientific completion is claimed.
+Following the user's continuation request, a 12:13 UTC resource check found
+60 GiB of available disk space and about 9.2 GiB of available memory. Frozen
+source/runtime validation passed. The same study restarted from 138 completed
+recovery jobs with two workers, unchanged limits, and appended logging.
 The full pilot, its final artifact audit and scientific interpretation are separate
 from the completed implementation checks; do not claim scientific completion until
 its inventory and report have been verified. Run it in logged background batches
 with two workers, one native thread each, 6 GiB total memory, 5 GiB output, and a
 10 GiB free-space floor. Keep the task PR pending until that verification, and keep
 integration PR #3 draft for the user's final combined validation.
+
+### Completed Task 6 pilot (2026-11-26)
+
+The final pilot completed all 800 references and 522 eligible recovery checkpoint
+jobs. Recovery finished at 17:39:54 UTC on 2026-11-26; analysis and rendering were
+complete by 17:48:19 UTC, and the coordinator returned exit code 0. All 522 original
+RNG replays matched their uninterrupted references. Eight arms and five futures
+give 20,880 logical continuations; immutable-state deduplication reduced actual
+future simulations to 14,900 while preserving every arm/future label.
+
+The completed phase ledgers contain no failed or incomplete jobs. There were two
+interrupted reference attempts and eight interrupted recovery attempts across
+requested pauses, the disk stop, and automatic 120-minute boundaries; each was
+successfully resumed. The separate SQLite-lock restart attempt launched no recovery
+workers. Monitoring reads should use the log during execution because the ledger
+writer has a zero-second busy timeout. The disk guard uses space available to the
+current user rather than total free blocks including ext4 reserves.
+
+Peak completed-worker RSS was 818.4 MiB for references and 438.8 MiB for recovery.
+The study, including reports and figures, occupies about 2.13 GiB. It used two
+workers and one native numerical thread each under the unchanged 6 GiB memory,
+5 GiB output, and 10 GiB available-disk limits. No new simulation or analysis
+source changes were needed after the optimized `e07f286` execution source.
+
+The final audit checked all 1,322 input artifacts against their manifests and
+analysis-input hashes, all 36 execution-source hashes, all six analysis payloads,
+and all sixteen PNG/PDF payloads. It independently reconstructed first confirmation
+at thresholds 20/100/250 from reference volumes, reconciled no-trade/activity
+fractions, and checked every distinct future's primary outcome and first exchange
+against daily arrays. It also verified future-seed pairing, logical labels,
+per-checkpoint outcomes, arm means, and all factorial point estimates. All eight
+figure families were visually inspected. Existing implementation checks remain
+132/132 focused tests and 25/25 exact notebook comparisons; final changes only add
+documentation and copies of verified figures.
+
+Audit script/log: `results/task6_final_audit_20261126.py` and
+`results/task6_final_audit_20261126.log`. The audit passed in 8.7 seconds with
+151.4 MiB peak RSS. Raw study artifacts remain Git-ignored. Artifact identities:
+
+- Study: `results/task6_inactivity_final_20261124`.
+- Analysis: `8a9ad9a03a620e48073119ea5f42d25df8f1dfa42274b6c40856dab4fee35114`.
+- Figures: `43ee1e9c0d2132eb4cf09f2dc8128198edb3dc22b2a8c9fa05e9b96ed0d651f5`.
+- Source: `e07f286ab0972268830780fd972e4819305e6175`.
+
+Each configuration has 50 reference seeds (600–649). Variants v0–v3 use closing
+noise 0.05; v4–v7 use zero. Within each block the order is
+stochastic/persistent, stochastic/day, constant/persistent, constant/day.
+The table's no-trade percentage averages the full 10,240-day reference horizon.
+Tail activity averages five futures inside each eligible checkpoint and then
+checkpoints. Brackets are pointwise 95% paired-bootstrap intervals for arm `111`;
+they are not multiplicity-adjusted. Arm `000` is the untouched-state future-RNG
+control; `111` clears queues, resets shared price memory, and redistributes active
+portfolios while conserving individual wealth, global cash, and integer shares.
+
+| Configuration | Confirmed stalls | Mean no-trade days | Control tail activity | All-interventions tail activity [95% CI] |
+| --- | ---: | ---: | ---: | ---: |
+| liquidity-v0 | 10/50 | 12.9% | 0.0% | 89.2% [69.2, 100.0] |
+| liquidity-v1 | 32/50 | 32.0% | 0.0% | 85.3% [76.7, 92.9] |
+| liquidity-v2 | 8/50 | 14.1% | 0.0% | 85.0% [60.0, 100.0] |
+| liquidity-v3 | 32/50 | 29.2% | 0.0% | 82.5% [72.0, 91.6] |
+| liquidity-v4 | 50/50 | 81.3% | 0.0% | 45.5% [33.5, 55.9] |
+| liquidity-v5 | 50/50 | 69.8% | 0.0% | 6.0% [1.2, 12.4] |
+| liquidity-v6 | 50/50 | 78.5% | 0.0% | 44.9% [34.2, 55.3] |
+| liquidity-v7 | 50/50 | 67.5% | 0.0% | 4.4% [0.8, 9.2] |
+| reference-v0 | 3/50 | 3.0% | 0.0% | 93.3% [80.0, 100.0] |
+| reference-v1 | 20/50 | 12.2% | 8.0% | 80.9% [71.5, 89.5] |
+| reference-v2 | 2/50 | 2.2% | 0.0% | 100.0% [100.0, 100.0] |
+| reference-v3 | 15/50 | 14.3% | 0.0% | 97.5% [94.0, 100.0] |
+| reference-v4 | 50/50 | 74.6% | 0.0% | 34.1% [22.3, 46.0] |
+| reference-v5 | 50/50 | 69.3% | 0.0% | 9.2% [2.8, 17.2] |
+| reference-v6 | 50/50 | 71.5% | 0.0% | 32.7% [21.2, 43.8] |
+| reference-v7 | 50/50 | 66.1% | 0.0% | 8.8% [2.4, 16.8] |
+
+Liquidity-v2 and reference-v0/v2 have fewer than ten eligible checkpoints. The
+reference-v2 interval is degenerate with only two checkpoints; it does not imply
+population certainty. Zero control estimates also have degenerate empirical
+intervals. All eight arm estimates, paired control contrasts, factorial effects,
+and flags are retained in the full `summary.json`.
+
+All 400 zero-closing-noise references developed a confirmed stall, versus 122/400
+positive-noise references. At positive noise, day-expiry cohorts had 99/200 stalls
+versus 23/200 with persistent orders in this fixed design. Dividend-mode differences
+were smaller than the broad noise/lifetime pattern. These are pilot descriptions
+across the two selected atlas coordinates, not universal market laws.
+
+At the first stall, noise traders had almost exhausted their shares: each cohort's
+mean share of all assets stayed below 0.005% throughout the first 100 stalled days,
+while their mean cash share over that window ranged from 3.2% to 26.7%. In zero-noise
+cohorts, fundamentalists took the below-threshold branch on 96–100% of decisions.
+Persistent books could retain both sides and accumulate bids despite no execution;
+day-order cohorts lacked one side after matching during the confirmed stall window.
+These diagnostics support resource concentration and decision/memory restrictions
+as interacting mechanisms; the event-aligned associations alone are not causal
+identification.
+
+The controlled interventions add evidence: with positive closing noise, portfolio
+redistribution alone produced 82.6–94.2% mean tail activity. Portfolio main effects,
+averaged over the other two factors, ranged from 56.0 to 96.1 percentage points.
+For example, liquidity-v1's effect was 64.4 points [57.0, 72.2]. Queue clearing alone
+matched the control's tail activity in every configuration; day-order checkpoints
+already had empty queues, making that factor an exact no-op. For zero-noise
+persistent orders, queue effects in combination could be positive (liquidity-v4:
+8.7 points [4.5, 13.3]). With zero noise and day expiry, even all interventions
+produced only 4.4–9.2% tail activity, despite substantially higher first-exchange
+fractions. Initial recovery therefore does not imply sustained trading.
+
+Recovery estimates are conditional on first confirmed stalled checkpoints and a
+1,000-day future horizon. They do not show permanent absorption, validated reduced
+equations, deterministic bifurcations, or chaos. No empirical-index or new MF-DFA
+comparison was added. The approved fixed pilot is complete; integration PR #3
+remains draft for the user's combined review.
 
 ## Multifractal scaling: task 7 (2026-11-17)
 

@@ -1103,7 +1103,7 @@ bifurcation task. The fixed protocol is in [RESEARCH_PLAN.md](RESEARCH_PLAN.md#a
 # Run this long command in the background with output redirected to a log.
 # Repeating it resumes the same immutable study.
 .venv/bin/python experiments/run_inactivity.py study results/task6_inactivity_final_20261124 \
-  --workers 2 > results/task6_inactivity_final_20261124.log 2>&1 &
+  --workers 2 >> results/task6_inactivity_final_20261124.log 2>&1 &
 
 .venv/bin/python experiments/run_inactivity.py status results/task6_inactivity_final_20261124
 .venv/bin/python experiments/run_inactivity.py analyze results/task6_inactivity_final_20261124
@@ -1117,6 +1117,11 @@ Python entry points are `generate_study(atlas, root)`, `complete_study(root)`,
 bounded batches after time limits. It stops on failures, signals, disk or memory
 limits. `--one-batch` disables automatic continuation after a time limit;
 `--retry-failed` explicitly permits replacing damaged or failed artifacts.
+Monitor the append-only log while a study is running. Use `status` after the
+runner stops: the current ledger writer has a zero-second SQLite busy timeout,
+so a concurrent status read can interrupt a commit. Completed artifacts remain
+reusable on restart. The disk guard measures space available to the current user,
+excluding ext4 reserved blocks.
 The existing hard machine caps apply. Small dimensions and seeds may be supplied
 to `generate` for engineering smoke checks; these are separate studies, never
 substitutes for the fixed pilot or pooled into its estimates.
@@ -1177,3 +1182,34 @@ Numerical methods reuse SciPy's
 [bootstrap](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.bootstrap.html)
 implementations. A broader survival framework or change-point package is unnecessary
 for this prespecified exact-zero-volume definition. No new dependency is required.
+
+### Completed fixed pilot (2026-11-26)
+
+All 800 references and 522 eligible recovery checkpoint jobs completed, with exact
+original-RNG replay for every checkpoint. The 20,880 logical arm/future combinations
+required 14,900 distinct simulations after state deduplication. All input artifacts,
+six analysis payloads, and sixteen figure payloads passed the final checksum audit;
+primary recovery outcomes were independently checked against daily arrays. The
+execution source remains `e07f286`. See [VALIDATION.md](VALIDATION.md#completed-task-6-pilot-2026-11-26)
+for per-configuration estimates, intervals, artifact identities, and limitations.
+
+Every zero-closing-noise reference developed a confirmed stall (400/400), compared
+with 122/400 at noise scale 0.05. Among selected stalled checkpoints, portfolio
+redistribution alone produced 82.6–94.2% mean tail activity in the positive-noise
+configurations. With zero closing noise, all three interventions together produced
+32.7–45.5% tail activity with persistent orders and 4.4–9.2% with day expiry. Clearing
+queues alone had the same primary outcome as the control in every configuration;
+its effects depended on combinations with other interventions. First recovery and
+sustained tail activity are separate outcomes.
+
+Variants v0–v3 use closing noise 0.05 and v4–v7 use zero. Within either block,
+the order is stochastic/persistent, stochastic/day, constant/persistent,
+constant/day. Three positive-noise cohorts have fewer than ten eligible checkpoints;
+their conditional recovery intervals need particular caution. These finite-horizon
+results do not establish permanent absorption or deterministic chaos.
+
+![Task 6 stall onset](experiments/figures/task6_20261126/stall_onset.png)
+
+![Task 6 conditional first recovery](experiments/figures/task6_20261126/recovery.png)
+
+![Task 6 paired factorial effects](experiments/figures/task6_20261126/factorial_effects.png)

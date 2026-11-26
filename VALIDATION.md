@@ -4,9 +4,9 @@
 
 Implemented on `feat/research-inactivity-dynamics`, from integration commit
 `64e0864`, following the approved inactivity/recovery protocol. Initial source is
-`40848ff`, with optimized execution source `e07f286`; draft
-[PR #10](https://github.com/Roman223/Agent_modelling/pull/10) targets
-the integration branch. The original ABM
+`40848ff`, with optimized execution source `e07f286`;
+[PR #10](https://github.com/Roman223/Agent_modelling/pull/10) merged into
+the integration branch on 2026-11-26. The original ABM
 rules, default numerical behavior, and random-draw ordering are unchanged.
 Optional hooks collect actual decision and matcher outcomes. The new module adds
 first-confirmation checkpoints, eight resource-conserving intervention arms, exact
@@ -219,7 +219,10 @@ Recovery estimates are conditional on first confirmed stalled checkpoints and a
 1,000-day future horizon. They do not show permanent absorption, validated reduced
 equations, deterministic bifurcations, or chaos. No empirical-index or new MF-DFA
 comparison was added. The approved fixed pilot is complete; integration PR #3
-remains draft for the user's combined review.
+remains draft for the user's combined review. Validated task head `1c836c4` merged
+through PR #10 as `1ff3c71` at 18:19 UTC on 2026-11-26. The merge tree was verified
+identical to that validated task head. All seven task PRs are integrated; `main`
+remains unchanged pending the user's final combined validation.
 
 ## Multifractal scaling: task 7 (2026-11-17)
 

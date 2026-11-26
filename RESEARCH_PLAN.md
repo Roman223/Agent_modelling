@@ -17,8 +17,8 @@ specification studies market inactivity, its mechanisms, and controlled recovery
 
 Execution task numbers below are distinct from the research phase numbers.
 Each task has its own branch and PR targeting `research/emergent-dynamics`.
-Tasks 1–5 and Task 7 are integrated. Task 6's inactivity pilot and final audit are
-complete; its validated task PR is ready for integration.
+All seven tasks, including Task 6's completed inactivity pilot and final audit,
+are integrated. The combined result awaits the user's final validation in PR #3.
 Create each subsequent task branch from
 the updated integration branch after its predecessor has merged; this keeps its
 PR focused on that task's changes. Use merge commits to retain the task history.
@@ -31,7 +31,7 @@ PR focused on that task's changes. Use merge commits to retain the task history.
 | 4 | `feat/research-hard-reduction` | Hard-rule deterministic reduction and comparisons with controlled ABM runs | Merged via [PR #7](https://github.com/Roman223/Agent_modelling/pull/7) |
 | 5 | `feat/research-heterogeneity-study` | Representative portfolios, minimum retained individuality for ABM fidelity, and data-driven structure discovery | Merged via [PR #8](https://github.com/Roman223/Agent_modelling/pull/8) |
 | 7 | `feat/research-multifractal-analysis` | MF-DFA, surrogate/GARCH controls, validation and pilot results | Merged via [PR #9](https://github.com/Roman223/Agent_modelling/pull/9) |
-| 6 | `feat/research-inactivity-dynamics` | Inactivity onset, decision/resource/book diagnostics, and resource-conserving factorial recovery | Implementation, full pilot, and final audit validated; ready for integration through [PR #10](https://github.com/Roman223/Agent_modelling/pull/10) |
+| 6 | `feat/research-inactivity-dynamics` | Inactivity onset, decision/resource/book diagnostics, and resource-conserving factorial recovery | Merged via [PR #10](https://github.com/Roman223/Agent_modelling/pull/10); full pilot and final audit validated |
 
 Future PRs are opened when their changes are available; pending rows do not imply
 implemented code or completed experiments. Each PR records its predecessor, scope,
@@ -493,8 +493,8 @@ Initial source `40848ff` implements the approved protocol. Optimized source `e07
 passed 132 focused checks plus all 25 default notebook comparisons. See the
 [interface](README.md#inactivity-and-recovery-task-6) and
 [validation record](VALIDATION.md#inactivity-and-recovery-task-6-2026-11-24).
-Draft [PR #10](https://github.com/Roman223/Agent_modelling/pull/10) targets the
-integration branch. The initial pilot was stopped to remove repeated book scans;
+[PR #10](https://github.com/Roman223/Agent_modelling/pull/10) merged into the
+integration branch on 2026-11-26. The initial pilot was stopped to remove repeated book scans;
 full-length comparisons retained identical observations and final market/RNG state.
 Its artifacts remain separate. The final pilot uses
 `results/task6_inactivity_final_20261124`, with output in
@@ -567,8 +567,9 @@ outcome in this pilot. Conditional finite-horizon recovery does not establish a
 deterministic transition map or permanent absorption. No further simulations are
 required for the approved Task 6 pilot.
 
-Integrate the validated Task 6 PR with a merge commit, verify its merged tree, and
-update integration PR #3. Keep PR #3 draft and leave `main` unchanged until the
-user validates the combined seven-task result. Broader confirmatory studies,
-additional model changes, and deterministic bifurcation analysis remain outside
-this completed pilot's scope.
+Validated task head `1c836c4` merged through PR #10 as `1ff3c71` at 18:19 UTC on
+2026-11-26. The merged tree was verified identical to the validated head before
+this documentation handoff. All seven task PRs are now integrated. Integration
+PR #3 remains draft and `main` is unchanged, pending the user's combined final
+validation. Broader confirmatory studies, additional model changes, and
+deterministic bifurcation analysis remain outside this completed pilot's scope.

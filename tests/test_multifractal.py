@@ -310,7 +310,11 @@ class ParentDeathTests(unittest.TestCase):
                     path = root/'simulation/ledger.sqlite'
                     if path.exists():
                         with sqlite3.connect(path.resolve().as_uri()+'?mode=ro', uri=True) as db:
-                            workers = [r[0] for r in db.execute("SELECT pid FROM attempts WHERE state='running' AND pid IS NOT NULL")]
+                            # SQLite creates the file before the coordinator has
+                            # installed its schema. Wait for that startup step.
+                            ready = db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='attempts'").fetchone()
+                            workers = ([r[0] for r in db.execute("SELECT pid FROM attempts WHERE state='running' AND pid IS NOT NULL")]
+                                       if ready else [])
                         if workers:
                             children = Path(f'/proc/{process.pid}/task/{process.pid}/children').read_text().split()
                             descendants = list(map(int, children))+workers

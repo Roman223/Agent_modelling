@@ -10,15 +10,16 @@ suitable, validated model. Basin/boundary geometry (research phase 4) is deferre
 The approved 2026-10-30 revision replaces task 5's smoothing study with a study
 of retained individual differences; see the revised scope below. The approved
 2026-11-17 priority revision put Task 7 next, including all five existing market
-indices. Its fixed pilot is now validated; Task 6 still requires a separate
-specification supported by the findings.
+indices. Its fixed pilot is now validated. The approved 2026-11-24 Task 6
+specification studies market inactivity, its mechanisms, and controlled recovery.
 
 ## Sequential PRs
 
 Execution task numbers below are distinct from the research phase numbers.
 Each task has its own branch and PR targeting `research/emergent-dynamics`.
-Tasks 1–5 and Task 7 are integrated. Task 6 requires a separate specification if
-justified. Create each subsequent task branch from
+Tasks 1–5 and Task 7 are integrated. Task 6's inactivity pilot and final audit are
+complete; its validated task PR is ready for integration.
+Create each subsequent task branch from
 the updated integration branch after its predecessor has merged; this keeps its
 PR focused on that task's changes. Use merge commits to retain the task history.
 
@@ -30,7 +31,7 @@ PR focused on that task's changes. Use merge commits to retain the task history.
 | 4 | `feat/research-hard-reduction` | Hard-rule deterministic reduction and comparisons with controlled ABM runs | Merged via [PR #7](https://github.com/Roman223/Agent_modelling/pull/7) |
 | 5 | `feat/research-heterogeneity-study` | Representative portfolios, minimum retained individuality for ABM fidelity, and data-driven structure discovery | Merged via [PR #8](https://github.com/Roman223/Agent_modelling/pull/8) |
 | 7 | `feat/research-multifractal-analysis` | MF-DFA, surrogate/GARCH controls, validation and pilot results | Merged via [PR #9](https://github.com/Roman223/Agent_modelling/pull/9) |
-| 6 | `feat/research-bifurcation-analysis` | Reassess the appropriate dynamics analysis after task 5; deterministic continuation/stability only if justified | Deferred; specify after the multifractal pilot |
+| 6 | `feat/research-inactivity-dynamics` | Inactivity onset, decision/resource/book diagnostics, and resource-conserving factorial recovery | Implementation, full pilot, and final audit validated; ready for integration through [PR #10](https://github.com/Roman223/Agent_modelling/pull/10) |
 
 Future PRs are opened when their changes are available; pending rows do not imply
 implemented code or completed experiments. Each PR records its predecessor, scope,
@@ -422,3 +423,152 @@ autonomous map, and another scaling study would require a prespecified treatment
 of transient windows, trading continuity, and independent seeds. Do not launch
 that follow-up or revive deterministic continuation automatically. Keep integration
 PR #3 draft for the final combined user validation; do not merge it into `main`.
+
+## Approved Task 6: inactivity and controlled recovery (2026-11-24)
+
+This specification supersedes the deferred bifurcation task. Task 4 failed ABM
+closure fidelity; Task 5 did not establish an autonomous transition map; Task 7
+found terminally inactive controlled ABMs. Study onset and mechanisms of inactivity
+and test recovery in the original individual-trader ABM. Do not perform deterministic
+continuation, another MF-DFA study, or an empirical-index comparison here.
+
+The fixed design has 800 references: seeds 600–649 at both stored atlas coordinates
+`grid-4-3` (reference) and `grid-6-0` (liquidity), each with all eight combinations of
+closing noise `{0, 0.05}`, dividends `{constant, stochastic}`, and orders
+`{persistent, day}`. Use the stored floating-point coordinates, baseline populations
+and endowments, window 20, no evolution, and no breaker. Run 10,240 trading days;
+exclude only the exogenous warm-up. Never pool these fresh references with earlier
+studies or treat failed/incomplete jobs as scientific censoring.
+
+A stall is confirmed after 100 consecutive exact zero executed-volume days. Retain
+all spells, their onset and confirmation, recovery, and terminal right censoring.
+Thresholds 20 and 250 are descriptive sensitivity analyses, not extra intervention
+cohorts. Report finite-horizon incidence and time to first confirmation, fixed
+100/500-day windows, and onset-aligned diagnostics with contributing counts. Capture
+actual decision reasons, submissions, self versus distinct-trader trades, strategy
+resources, accepted-price memory, and post-matching/pre-expiry book conditions.
+
+Capture one immutable checkpoint per eligible reference after its first confirmation
+and after day-order expiry. Apply all eight combinations of three binary interventions:
+
+1. Clear both outstanding queues once, retaining the subsequent lifetime policy.
+2. Reset the last 20 accepted prices to the current price, retaining history length
+   and dividends. This shared memory affects chartists and fundamentalists.
+3. Equalize active traders' target invested fractions at the current price, preserving
+   each trader's marked-to-market wealth and global cash/integer shares. Allocate
+   target shares proportional to wealth, floor, then assign largest fractional
+   remainders subject to affordability caps, breaking ties by stable trader ID.
+   Leave inactive traders unchanged and record transfers and conservation residuals.
+
+Each arm receives five reproducible future RNG seeds and 1,000 continuation days:
+at most 32,000 logical continuations before identical-state deduplication. Retain all
+eight labels after deduplication. Corresponding arms share the initial future RNG
+state; branch-dependent draw consumption prevents a claim of identical later shocks.
+Verify an additional untouched original-RNG continuation against the uninterrupted
+reference's daily observations and final state/RNG. Extend a late reference only
+enough for this validation tail; exclude that tail from onset statistics.
+
+The primary outcome is the distinct-trader exchange-day fraction on continuation
+days 901–1,000. Secondary outcomes include first execution/exchange, volume, and
+recurrent stalls. Average futures within checkpoints; use reference seeds as the
+inference unit for factorial main effects/interactions, with 2,000 paired bootstrap
+resamples and pointwise 95% intervals. Flag small samples and degenerate empirical
+intervals. Recovery is conditional on selected stalled states; finite nonrecovery
+does not prove permanent absorption. No-stall configurations have N/A recovery.
+
+Reuse checkpoint/provenance/worker infrastructure and NumPy/SciPy survival, binomial,
+and bootstrap functions; add no dependency. Freeze settings and source/runtime
+identity before the pilot. Benchmark a reference and recovery job before scaling;
+use two workers, one native thread each, 6 GiB total memory, 5 GiB output, a 10 GiB
+free-disk floor, and logged background batches no longer than 120 minutes each.
+Continue bounded resumable batches until the fixed design completes, stopping on
+resource limits or failures. Validate exact replay, conservation, censoring, and
+known survival answers; interruption/resume, corruption and provenance guards;
+all existing focused suites and the 25 default legacy cases. Keep PR #3 draft for
+the final combined user validation.
+
+### Task 6 implementation handoff
+
+Initial source `40848ff` implements the approved protocol. Optimized source `e07f286`
+passed 132 focused checks plus all 25 default notebook comparisons. See the
+[interface](README.md#inactivity-and-recovery-task-6) and
+[validation record](VALIDATION.md#inactivity-and-recovery-task-6-2026-11-24).
+Draft [PR #10](https://github.com/Roman223/Agent_modelling/pull/10) targets the
+integration branch. The initial pilot was stopped to remove repeated book scans;
+full-length comparisons retained identical observations and final market/RNG state.
+Its artifacts remain separate. The final pilot uses
+`results/task6_inactivity_final_20261124`, with output in
+`results/task6_inactivity_final_20261124.log`. It started at 13:37 UTC on 2026-11-24.
+Its driver completed all eligible recovery jobs, analysis, and rendering after
+the references finished. The full scientific pilot and final artifact/figure audit
+passed on 2026-11-26. Historical pauses and restarts are recorded below.
+
+Paused at the user's request on 2026-11-24 at 14:46 UTC. The coordinator and workers
+exited with 428 references complete, two interrupted and restartable, and 370
+pending. Recovery experiments had not started.
+
+The user requested resumption on 2026-11-25. Source/runtime identity and all 428
+completed artifacts were verified, and the same study resumed at 13:09 UTC with
+two workers and the original limits. All 800 references completed at 14:08 UTC,
+and 522 eligible recovery checkpoint jobs were scheduled.
+
+Paused again at the user's explicit request on 2026-11-25 at 15:53 UTC. The
+coordinator and workers exited cleanly. All 800 references and 121 recovery batches
+are complete; two recovery batches are interrupted and 399 are pending. No jobs
+failed. The pause required an explicit user request before resumption. Preserve
+the frozen study and execution source.
+
+Resume with the same `study` command from the README, using
+`results/task6_inactivity_final_20261124` and two workers. Completed references and
+recovery batches are verified and reused; only the interrupted batches restart.
+Analysis, rendering, the final audit, and integration remain pending.
+
+The user requested resumption on 2026-11-26. Source/runtime identity and completed
+artifacts were verified. Recovery resumed at 10:52 UTC with 401 checkpoint jobs
+remaining, two worker slots, and unchanged limits. The first job runs alone as
+the scheduler's benchmark before both slots are used. Logs are appended to the
+same file. A preceding restart attempt exited before launching recovery workers
+with a transient SQLite lock, apparently coinciding with a status query. Monitor
+the append-only log during execution; the ledger writer has a zero-second busy
+timeout. No simulation source or frozen study settings were changed.
+
+The resumed run stopped automatically at 11:08 UTC on 2026-11-26 with
+`free_disk_limit`: 138/522 recovery jobs complete, two interrupted, and 382 pending.
+The coordinator exited with code 2. At 12:01 UTC the filesystem had only 2.6 GiB
+free; the study itself still occupied about 2.0 GiB. Restore sufficient free space
+for the unchanged 10 GiB floor and active-worker reservations before restarting.
+Completed artifacts remain preserved. About 6–7 hours of running time remain at
+the observed pace, excluding any time needed to resolve the disk shortage.
+
+The user requested continuation later on 2026-11-26. At 12:13 UTC, available disk
+space was 60 GiB and available memory about 9.2 GiB. Source/runtime identity passed
+again, and the same study was restarted with two workers and all original limits.
+It resumes from 138 completed recovery jobs, with 384 remaining. The existing log
+is retained and appended; analysis, rendering, and the final audit remain pending.
+
+### Task 6 completed pilot and integration handoff (2026-11-26)
+
+All 800 references and 522 recovery checkpoint jobs are complete. Recovery finished
+at 17:39 UTC; analysis and all eight PNG/PDF figure families finished by 17:48 UTC.
+The coordinator exited successfully. Every checkpoint passed exact original-RNG
+replay. State deduplication retained all 20,880 logical arm/future labels while
+executing 14,900 distinct futures. There are no failed or incomplete jobs.
+
+The final audit verified all 1,322 input artifacts, 36 execution-source hashes,
+six analysis payloads, and sixteen figure payloads. It independently reconciled
+reference stall thresholds and primary recovery outcomes with daily arrays and
+checked arm means and factorial estimates. All eight figure families were visually
+inspected. See [the complete validation and findings](VALIDATION.md#completed-task-6-pilot-2026-11-26).
+
+Every zero-closing-noise reference stalled; 122/400 positive-noise references did.
+Recovery depends strongly on portfolios, accepted-price memory, and the subsequent
+forcing/order-lifetime policy. Queue clearing alone does not improve the primary
+outcome in this pilot. Conditional finite-horizon recovery does not establish a
+deterministic transition map or permanent absorption. No further simulations are
+required for the approved Task 6 pilot.
+
+Integrate the validated Task 6 PR with a merge commit, verify its merged tree, and
+update integration PR #3. Keep PR #3 draft and leave `main` unchanged until the
+user validates the combined seven-task result. Broader confirmatory studies,
+additional model changes, and deterministic bifurcation analysis remain outside
+this completed pilot's scope.
